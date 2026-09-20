@@ -59,7 +59,6 @@ async function initializeApp() {
             "Make sure the Node.js server is running.",
             true
         );
-
     }
 }
 
@@ -115,7 +114,7 @@ function renderProducts() {
                     <div class="product-card">
 
                         <span class="product-id">
-                            PRODUCT #${product.productID}
+                            PRODUCT #${product.id}
                         </span>
 
                         <h3>
@@ -166,8 +165,12 @@ function populateProductSelect() {
                     "option"
                 );
 
+            /*
+             * IMPORTANT:
+             * Product API uses "id"
+             */
             option.value =
-                product.productID;
+                product.id;
 
             option.textContent =
                 `${product.name} — ₹${formatMoney(product.price)}`;
@@ -233,7 +236,7 @@ async function searchProduct() {
                         ${escapeHtml(product.name)}
                     </strong>
                     &nbsp; • &nbsp;
-                    Product #${product.productID}
+                    Product #${product.id}
                     &nbsp; • &nbsp;
                     ₹${formatMoney(product.price)}
                     &nbsp; • &nbsp;
@@ -326,7 +329,7 @@ function renderOrders() {
             const product =
                 products.find(
                     p =>
-                        p.productID ===
+                        p.id ===
                         order.productID
                 );
 
@@ -411,7 +414,7 @@ function renderQueue() {
                 const product =
                     products.find(
                         p =>
-                            p.productID ===
+                            p.id ===
                             order.productID
                     );
 
@@ -473,7 +476,7 @@ function renderDashboardOrders() {
                 const product =
                     products.find(
                         p =>
-                            p.productID ===
+                            p.id ===
                             order.productID
                     );
 
@@ -543,14 +546,57 @@ document
 
 
             if (
-                !productID ||
-                !quantity ||
+                !Number.isInteger(productID) ||
+                productID <= 0 ||
+                !Number.isInteger(quantity) ||
                 quantity < 1
             ) {
 
                 showToast(
                     "Invalid Order",
-                    "Select a product and quantity.",
+                    "Select a product and enter a valid quantity.",
+                    true
+                );
+
+                return;
+            }
+
+
+            /*
+             * Make sure the selected product
+             * actually exists.
+             */
+            const selectedProduct =
+                products.find(
+                    product =>
+                        Number(product.id) ===
+                        productID
+                );
+
+
+            if (!selectedProduct) {
+
+                showToast(
+                    "Invalid Product",
+                    "The selected product could not be found.",
+                    true
+                );
+
+                return;
+            }
+
+
+            /*
+             * Optional frontend stock check.
+             */
+            if (
+                quantity >
+                Number(selectedProduct.stock)
+            ) {
+
+                showToast(
+                    "Insufficient Stock",
+                    `Only ${selectedProduct.stock} units are available.`,
                     true
                 );
 
@@ -617,7 +663,10 @@ document
 
             } catch (error) {
 
-                console.error(error);
+                console.error(
+                    "Place order error:",
+                    error
+                );
 
                 showToast(
                     "Order Failed",
@@ -944,7 +993,7 @@ function renderHistory() {
             const product =
                 products.find(
                     p =>
-                        p.productID ===
+                        p.id ===
                         order.productID
                 );
 
@@ -1074,10 +1123,14 @@ function updateOrderPreview() {
         ) || 1;
 
 
+    /*
+     * IMPORTANT:
+     * Product API uses "id", not "productID".
+     */
     const product =
         products.find(
             p =>
-                p.productID ===
+                Number(p.id) ===
                 productID
         );
 
@@ -1098,7 +1151,7 @@ function updateOrderPreview() {
 
 
     const total =
-        product.price *
+        Number(product.price) *
         quantity;
 
 
@@ -1106,7 +1159,13 @@ function updateOrderPreview() {
         `
             ${escapeHtml(product.name)}
             × ${quantity}
-            <strong style="margin-left:auto;color:#57d6b4;">
+
+            <strong
+                style="
+                    margin-left:auto;
+                    color:#57d6b4;
+                "
+            >
                 ₹${formatMoney(total)}
             </strong>
         `;
