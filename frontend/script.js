@@ -9,15 +9,12 @@ let history = [];
    API HELPER
    ========================================== */
 
-async function apiRequest(
-    endpoint,
-    options = {}
-) {
-    const response =
-        await fetch(
-            API + endpoint,
-            options
-        );
+async function apiRequest(endpoint, options = {}) {
+
+    const response = await fetch(
+        API + endpoint,
+        options
+    );
 
     if (!response.ok) {
         throw new Error(
@@ -38,13 +35,10 @@ async function initializeApp() {
     try {
 
         await loadProducts();
-
         await loadOrders();
-
         await loadHistory();
 
         updateDashboard();
-
         updateOrderPreview();
 
     } catch (error) {
@@ -69,93 +63,95 @@ async function initializeApp() {
 
 async function loadProducts() {
 
-    const data =
-        await apiRequest(
-            "/api/products"
-        );
+    const data = await apiRequest(
+        "/api/products"
+    );
 
-    products =
-        data.products || [];
+    products = data.products || [];
 
     renderProducts();
-
     populateProductSelect();
+    updateDashboard();
 }
 
 
 function renderProducts() {
 
-    const grid =
-        document.getElementById(
-            "productGrid"
-        );
+    const grid = document.getElementById(
+        "productGrid"
+    );
 
     if (!products.length) {
 
-        grid.innerHTML =
-            `<div class="loading">
+        grid.innerHTML = `
+            <div class="loading">
                 No products found.
-            </div>`;
+            </div>
+        `;
 
         return;
     }
 
+    grid.innerHTML = products.map(
+        product => {
 
-    grid.innerHTML =
-        products.map(
-            product => {
+            const stock = Number(
+                product.stock || 0
+            );
 
-                const stockClass =
-                    product.stock > 5
-                        ? "stock-good"
-                        : "";
+            let stockClass = "stock-good";
 
-                return `
-                    <div class="product-card">
+            if (stock <= 0) {
+                stockClass = "stock-out";
+            } else if (stock <= 5) {
+                stockClass = "stock-low";
+            }
 
-                        <span class="product-id">
-                            PRODUCT #${product.id}
+            return `
+                <div class="product-card">
+
+                    <span class="product-id">
+                        PRODUCT #${product.id}
+                    </span>
+
+                    <h3>
+                        ${escapeHtml(product.name)}
+                    </h3>
+
+                    <div class="product-price">
+                        ₹${formatMoney(product.price)}
+                    </div>
+
+                    <div class="product-stock">
+
+                        <span>
+                            Available stock
                         </span>
 
-                        <h3>
-                            ${escapeHtml(product.name)}
-                        </h3>
-
-                        <div class="product-price">
-                            ₹${formatMoney(product.price)}
-                        </div>
-
-                        <div class="product-stock">
-
-                            <span>
-                                Available stock
-                            </span>
-
-                            <strong class="${stockClass}">
-                                ${product.stock} units
-                            </strong>
-
-                        </div>
+                        <strong class="${stockClass}">
+                            ${stock} units
+                        </strong>
 
                     </div>
-                `;
-            }
-        ).join("");
+
+                </div>
+            `;
+        }
+    ).join("");
 }
 
 
 function populateProductSelect() {
 
-    const select =
-        document.getElementById(
-            "orderProduct"
-        );
+    const select = document.getElementById(
+        "orderProduct"
+    );
 
-    select.innerHTML =
-        `<option value="">
+    select.innerHTML = `
+        <option value="">
             Select product
-        </option>`;
-
+        </option>
+    `;
 
     products.forEach(
         product => {
@@ -165,12 +161,7 @@ function populateProductSelect() {
                     "option"
                 );
 
-            /*
-             * IMPORTANT:
-             * Product API uses "id"
-             */
-            option.value =
-                product.id;
+            option.value = product.id;
 
             option.textContent =
                 `${product.name} — ₹${formatMoney(product.price)}`;
@@ -187,14 +178,11 @@ function populateProductSelect() {
 
 async function searchProduct() {
 
-    const input =
-        document.getElementById(
-            "productSearch"
-        );
+    const input = document.getElementById(
+        "productSearch"
+    );
 
-    const id =
-        Number(input.value);
-
+    const id = Number(input.value);
 
     if (!Number.isInteger(id)) {
 
@@ -207,40 +195,44 @@ async function searchProduct() {
         return;
     }
 
-
     try {
 
-        const data =
-            await apiRequest(
-                `/api/products/${id}`
-            );
+        const data = await apiRequest(
+            `/api/products/${id}`
+        );
 
-        const result =
-            document.getElementById(
-                "searchResult"
-            );
-
+        const result = document.getElementById(
+            "searchResult"
+        );
 
         if (
             data.success &&
             data.product
         ) {
 
-            const product =
-                data.product;
+            const product = data.product;
 
             result.innerHTML = `
                 <div class="search-highlight">
+
                     ✓ BST Search Found:
+
                     <strong>
                         ${escapeHtml(product.name)}
                     </strong>
+
                     &nbsp; • &nbsp;
+
                     Product #${product.id}
+
                     &nbsp; • &nbsp;
+
                     ₹${formatMoney(product.price)}
+
                     &nbsp; • &nbsp;
+
                     ${product.stock} in stock
+
                 </div>
             `;
 
@@ -272,18 +264,14 @@ async function searchProduct() {
 
 async function loadOrders() {
 
-    const data =
-        await apiRequest(
-            "/api/orders"
-        );
+    const data = await apiRequest(
+        "/api/orders"
+    );
 
-    orders =
-        data.orders || [];
+    orders = data.orders || [];
 
     renderOrders();
-
     renderQueue();
-
     renderDashboardOrders();
 
     updateDashboard();
@@ -292,22 +280,20 @@ async function loadOrders() {
 
 function renderOrders() {
 
-    const container =
-        document.getElementById(
-            "ordersTable"
-        );
-
+    const container = document.getElementById(
+        "ordersTable"
+    );
 
     if (!orders.length) {
 
-        container.innerHTML =
-            `<div class="loading">
+        container.innerHTML = `
+            <div class="loading">
                 No pending orders.
-            </div>`;
+            </div>
+        `;
 
         return;
     }
-
 
     let html = `
 
@@ -322,23 +308,20 @@ function renderOrders() {
         </div>
     `;
 
-
     orders.forEach(
         order => {
 
             const product =
                 products.find(
                     p =>
-                        p.id ===
-                        order.productID
+                        Number(p.id) ===
+                        Number(order.productID)
                 );
-
 
             const productName =
                 product
                     ? product.name
                     : `Product ${order.productID}`;
-
 
             html += `
 
@@ -357,21 +340,26 @@ function renderOrders() {
                     </div>
 
                     <div>
-                        ₹${formatMoney(order.totalAmount)}
+                        ₹${formatMoney(getOrderAmount(order))}
                     </div>
 
                     <div class="action-buttons">
 
                         <button
                             class="small-button"
-                            onclick="editOrder(${order.orderID}, ${order.quantity})"
+                            onclick="editOrder(
+                                ${order.orderID},
+                                ${order.quantity}
+                            )"
                         >
                             Edit
                         </button>
 
                         <button
                             class="small-button"
-                            onclick="cancelOrder(${order.orderID})"
+                            onclick="cancelOrder(
+                                ${order.orderID}
+                            )"
                         >
                             Cancel
                         </button>
@@ -383,66 +371,62 @@ function renderOrders() {
         }
     );
 
-
     container.innerHTML = html;
 }
 
 
 function renderQueue() {
 
-    const track =
-        document.getElementById(
-            "queueTrack"
-        );
-
+    const track = document.getElementById(
+        "queueTrack"
+    );
 
     if (!orders.length) {
 
-        track.innerHTML =
-            `<div class="empty-queue">
+        track.innerHTML = `
+            <div class="empty-queue">
                 Queue is empty
-            </div>`;
+            </div>
+        `;
 
         return;
     }
 
+    track.innerHTML = orders.map(
+        (order, index) => {
 
-    track.innerHTML =
-        orders.map(
-            (order, index) => {
+            const product =
+                products.find(
+                    p =>
+                        Number(p.id) ===
+                        Number(order.productID)
+                );
 
-                const product =
-                    products.find(
-                        p =>
-                            p.id ===
-                            order.productID
-                    );
-
-
-                return `
-                    ${index > 0
+            return `
+                ${
+                    index > 0
                         ? `<span class="queue-arrow">→</span>`
                         : ""
-                    }
+                }
 
-                    <div class="queue-box">
+                <div class="queue-box">
 
-                        <strong>
-                            #${order.orderID}
-                        </strong>
+                    <strong>
+                        #${order.orderID}
+                    </strong>
 
-                        <small>
-                            ${product
+                    <small>
+                        ${
+                            product
                                 ? escapeHtml(product.name)
                                 : "Product"
-                            }
-                        </small>
+                        }
+                    </small>
 
-                    </div>
-                `;
-
-            }
-        ).join("");
+                </div>
+            `;
+        }
+    ).join("");
 }
 
 
@@ -453,21 +437,19 @@ function renderDashboardOrders() {
             "dashboardOrders"
         );
 
-
     const recent =
         orders.slice(0, 4);
 
-
     if (!recent.length) {
 
-        container.innerHTML =
-            `<div class="loading">
+        container.innerHTML = `
+            <div class="loading">
                 No pending orders.
-            </div>`;
+            </div>
+        `;
 
         return;
     }
-
 
     container.innerHTML =
         recent.map(
@@ -476,10 +458,9 @@ function renderDashboardOrders() {
                 const product =
                     products.find(
                         p =>
-                            p.id ===
-                            order.productID
+                            Number(p.id) ===
+                            Number(order.productID)
                     );
-
 
                 return `
                     <div class="order-row">
@@ -489,9 +470,10 @@ function renderDashboardOrders() {
                         </div>
 
                         <div>
-                            ${product
-                                ? escapeHtml(product.name)
-                                : "Product"
+                            ${
+                                product
+                                    ? escapeHtml(product.name)
+                                    : "Product"
                             }
                         </div>
 
@@ -500,7 +482,9 @@ function renderDashboardOrders() {
                         </div>
 
                         <div>
-                            ₹${formatMoney(order.totalAmount)}
+                            ₹${formatMoney(
+                                getOrderAmount(order)
+                            )}
                         </div>
 
                         <div>
@@ -528,7 +512,6 @@ document
 
             event.preventDefault();
 
-
             const productID =
                 Number(
                     document.getElementById(
@@ -536,14 +519,12 @@ document
                     ).value
                 );
 
-
             const quantity =
                 Number(
                     document.getElementById(
                         "orderQuantity"
                     ).value
                 );
-
 
             if (
                 !Number.isInteger(productID) ||
@@ -561,18 +542,12 @@ document
                 return;
             }
 
-
-            /*
-             * Make sure the selected product
-             * actually exists.
-             */
             const selectedProduct =
                 products.find(
                     product =>
                         Number(product.id) ===
                         productID
                 );
-
 
             if (!selectedProduct) {
 
@@ -585,24 +560,21 @@ document
                 return;
             }
 
+            const availableStock =
+                Number(
+                    selectedProduct.stock || 0
+                );
 
-            /*
-             * Optional frontend stock check.
-             */
-            if (
-                quantity >
-                Number(selectedProduct.stock)
-            ) {
+            if (quantity > availableStock) {
 
                 showToast(
                     "Insufficient Stock",
-                    `Only ${selectedProduct.stock} units are available.`,
+                    `Only ${availableStock} units are available.`,
                     true
                 );
 
                 return;
             }
-
 
             try {
 
@@ -625,7 +597,6 @@ document
                         }
                     );
 
-
                 if (!data.success) {
 
                     showToast(
@@ -638,12 +609,18 @@ document
                     return;
                 }
 
+                const createdOrder =
+                    data.order || {};
+
+                const createdOrderID =
+                    createdOrder.id ??
+                    createdOrder.orderID ??
+                    "new";
 
                 showToast(
                     "Order Placed",
-                    `Order #${data.order.id} added to the FIFO queue.`
+                    `Order #${createdOrderID} added to the FIFO queue.`
                 );
-
 
                 document
                     .getElementById(
@@ -651,13 +628,11 @@ document
                     )
                     .reset();
 
-
                 document
                     .getElementById(
                         "orderQuantity"
                     )
                     .value = 1;
-
 
                 await refreshAll();
 
@@ -674,7 +649,6 @@ document
                     true
                 );
             }
-
         }
     );
 
@@ -696,7 +670,6 @@ async function processNextOrder() {
         return;
     }
 
-
     try {
 
         const data =
@@ -707,24 +680,32 @@ async function processNextOrder() {
                 }
             );
 
-
         if (!data.success) {
 
             showToast(
                 "Processing Failed",
-                data.message,
+                data.message ||
+                    "Could not process the order.",
                 true
             );
 
             return;
         }
 
+        const processedOrder =
+            data.order || {};
+
+        const processedID =
+            processedOrder.id ??
+            processedOrder.orderID ??
+            "";
 
         showToast(
             "Order Processed",
-            `Order #${data.order.id} completed successfully.`
+            processedID
+                ? `Order #${processedID} completed successfully.`
+                : "Order completed successfully."
         );
-
 
         await refreshAll();
 
@@ -758,15 +739,12 @@ async function editOrder(
             )
         );
 
-
     if (
         !Number.isInteger(newQuantity) ||
         newQuantity < 1
     ) {
-
         return;
     }
-
 
     try {
 
@@ -789,24 +767,22 @@ async function editOrder(
                 }
             );
 
-
         if (!data.success) {
 
             showToast(
                 "Edit Failed",
-                data.message,
+                data.message ||
+                    "Could not update the order.",
                 true
             );
 
             return;
         }
 
-
         showToast(
             "Order Updated",
             `Order #${orderID} quantity changed.`
         );
-
 
         await refreshAll();
 
@@ -834,11 +810,9 @@ async function cancelOrder(orderID) {
             `Cancel Order #${orderID}?`
         );
 
-
     if (!confirmed) {
         return;
     }
-
 
     try {
 
@@ -850,24 +824,22 @@ async function cancelOrder(orderID) {
                 }
             );
 
-
         if (!data.success) {
 
             showToast(
                 "Cancellation Failed",
-                data.message,
+                data.message ||
+                    "Could not cancel the order.",
                 true
             );
 
             return;
         }
 
-
         showToast(
             "Order Cancelled",
             `Order #${orderID} cancelled. You can undo this action.`
         );
-
 
         await refreshAll();
 
@@ -900,24 +872,22 @@ async function undoLastAction() {
                 }
             );
 
-
         if (!data.success) {
 
             showToast(
                 "Nothing to Undo",
-                data.message,
+                data.message ||
+                    "There is no action to undo.",
                 true
             );
 
             return;
         }
 
-
         showToast(
             "Undo Successful",
             "The previous action was reversed."
         );
-
 
         await refreshAll();
 
@@ -949,7 +919,6 @@ async function loadHistory() {
         data.history || [];
 
     renderHistory();
-
     updateDashboard();
 }
 
@@ -961,17 +930,16 @@ function renderHistory() {
             "historyTable"
         );
 
-
     if (!history.length) {
 
-        container.innerHTML =
-            `<div class="loading">
+        container.innerHTML = `
+            <div class="loading">
                 No processed orders yet.
-            </div>`;
+            </div>
+        `;
 
         return;
     }
-
 
     let html = `
 
@@ -986,17 +954,15 @@ function renderHistory() {
         </div>
     `;
 
-
     history.forEach(
         order => {
 
             const product =
                 products.find(
                     p =>
-                        p.id ===
-                        order.productID
+                        Number(p.id) ===
+                        Number(order.productID)
                 );
-
 
             html += `
 
@@ -1007,9 +973,10 @@ function renderHistory() {
                     </div>
 
                     <div>
-                        ${product
-                            ? escapeHtml(product.name)
-                            : `Product ${order.productID}`
+                        ${
+                            product
+                                ? escapeHtml(product.name)
+                                : `Product ${order.productID}`
                         }
                     </div>
 
@@ -1018,7 +985,9 @@ function renderHistory() {
                     </div>
 
                     <div>
-                        ₹${formatMoney(order.totalAmount)}
+                        ₹${formatMoney(
+                            getOrderAmount(order)
+                        )}
                     </div>
 
                     <div>
@@ -1034,50 +1003,272 @@ function renderHistory() {
         }
     );
 
-
     container.innerHTML = html;
 }
 
 
 /* ==========================================
-   DASHBOARD STATS
+   DASHBOARD
    ========================================== */
 
 function updateDashboard() {
 
-    document.getElementById(
-        "productCount"
-    ).textContent =
-        products.length;
+    /* ----------------------------------------
+       Basic statistics
+       ---------------------------------------- */
+
+    setText(
+        "productCount",
+        products.length
+    );
+
+    setText(
+        "pendingCount",
+        orders.length
+    );
+
+    setText(
+        "processedCount",
+        history.length
+    );
 
 
-    document.getElementById(
-        "pendingCount"
-    ).textContent =
-        orders.length;
+    /* ----------------------------------------
+       Processed sales
+       ---------------------------------------- */
 
-
-    document.getElementById(
-        "processedCount"
-    ).textContent =
-        history.length;
-
-
-    const total =
+    const processedValue =
         history.reduce(
             (sum, order) =>
                 sum +
-                Number(
-                    order.totalAmount || 0
-                ),
+                getOrderAmount(order),
             0
         );
 
 
-    document.getElementById(
-        "totalValue"
-    ).textContent =
-        `₹${formatMoney(total)}`;
+    setText(
+        "totalValue",
+        `₹${formatMoney(processedValue)}`
+    );
+
+
+    /* ----------------------------------------
+       Pending order value
+       ---------------------------------------- */
+
+    const pendingValue =
+        orders.reduce(
+            (sum, order) =>
+                sum +
+                getOrderAmount(order),
+            0
+        );
+
+
+    setText(
+        "pendingOrderValue",
+        `₹${formatMoney(pendingValue)}`
+    );
+
+
+    /* ----------------------------------------
+       Average processed order value
+       ---------------------------------------- */
+
+    const averageOrderValue =
+        history.length > 0
+            ? processedValue / history.length
+            : 0;
+
+
+    setText(
+        "averageOrderValue",
+        `₹${formatMoney(averageOrderValue)}`
+    );
+
+
+    /* ----------------------------------------
+       Total inventory units
+       ---------------------------------------- */
+
+    const inventoryUnits =
+        products.reduce(
+            (sum, product) =>
+                sum +
+                Number(product.stock || 0),
+            0
+        );
+
+
+    setText(
+        "inventoryUnits",
+        inventoryUnits
+    );
+
+
+    /* ----------------------------------------
+       Low stock
+       ---------------------------------------- */
+
+    const lowStockProducts =
+        products.filter(
+            product =>
+                Number(product.stock || 0) <= 5
+        );
+
+
+    setText(
+        "lowStockCount",
+        lowStockProducts.length
+    );
+
+
+    /* ----------------------------------------
+       Sales overview
+       ---------------------------------------- */
+
+    setText(
+        "dashboardSales",
+        `₹${formatMoney(processedValue)}`
+    );
+
+
+    /* ----------------------------------------
+       Queue progress
+       ---------------------------------------- */
+
+    const totalOrders =
+        orders.length +
+        history.length;
+
+    const processedPercentage =
+        totalOrders > 0
+            ? Math.round(
+                (history.length /
+                    totalOrders) *
+                100
+            )
+            : 0;
+
+
+    const progress =
+        document.getElementById(
+            "queueProgress"
+        );
+
+    if (progress) {
+
+        progress.style.width =
+            `${processedPercentage}%`;
+    }
+
+
+    setText(
+        "queueProgressText",
+        `${processedPercentage}% processed`
+    );
+
+
+    /* ----------------------------------------
+       Stock alerts
+       ---------------------------------------- */
+
+    renderStockAlerts(
+        lowStockProducts
+    );
+}
+
+
+/* ==========================================
+   STOCK ALERTS
+   ========================================== */
+
+function renderStockAlerts(
+    lowStockProducts
+) {
+
+    const container =
+        document.getElementById(
+            "stockAlerts"
+        );
+
+    if (!container) {
+        return;
+    }
+
+
+    if (!lowStockProducts.length) {
+
+        container.innerHTML = `
+
+            <div class="stock-safe">
+
+                <div class="stock-safe-icon">
+                    ✓
+                </div>
+
+                <strong>
+                    Inventory looks healthy
+                </strong>
+
+                <span>
+                    No products are low on stock.
+                </span>
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    const sortedProducts =
+        [...lowStockProducts]
+            .sort(
+                (a, b) =>
+                    Number(a.stock || 0) -
+                    Number(b.stock || 0)
+            )
+            .slice(0, 6);
+
+
+    container.innerHTML =
+        sortedProducts.map(
+            product => {
+
+                const stock =
+                    Number(
+                        product.stock || 0
+                    );
+
+                return `
+
+                    <div class="stock-alert">
+
+                        <div class="stock-alert-info">
+
+                            <strong>
+                                ${escapeHtml(
+                                    product.name
+                                )}
+                            </strong>
+
+                            <span>
+                                Product #${product.id}
+                            </span>
+
+                        </div>
+
+                        <div class="stock-alert-count">
+                            ${stock} left
+                        </div>
+
+                    </div>
+
+                `;
+            }
+        ).join("");
 }
 
 
@@ -1086,9 +1277,7 @@ function updateDashboard() {
    ========================================== */
 
 document
-    .getElementById(
-        "orderProduct"
-    )
+    .getElementById("orderProduct")
     .addEventListener(
         "change",
         updateOrderPreview
@@ -1096,9 +1285,7 @@ document
 
 
 document
-    .getElementById(
-        "orderQuantity"
-    )
+    .getElementById("orderQuantity")
     .addEventListener(
         "input",
         updateOrderPreview
@@ -1114,7 +1301,6 @@ function updateOrderPreview() {
             ).value
         );
 
-
     const quantity =
         Number(
             document.getElementById(
@@ -1123,10 +1309,6 @@ function updateOrderPreview() {
         ) || 1;
 
 
-    /*
-     * IMPORTANT:
-     * Product API uses "id", not "productID".
-     */
     const product =
         products.find(
             p =>
@@ -1155,20 +1337,19 @@ function updateOrderPreview() {
         quantity;
 
 
-    preview.innerHTML =
-        `
-            ${escapeHtml(product.name)}
-            × ${quantity}
+    preview.innerHTML = `
+        ${escapeHtml(product.name)}
+        × ${quantity}
 
-            <strong
-                style="
-                    margin-left:auto;
-                    color:#57d6b4;
-                "
-            >
-                ₹${formatMoney(total)}
-            </strong>
-        `;
+        <strong
+            style="
+                margin-left:auto;
+                color:#57d6b4;
+            "
+        >
+            ₹${formatMoney(total)}
+        </strong>
+    `;
 }
 
 
@@ -1179,18 +1360,14 @@ function changeQuantity(amount) {
             "orderQuantity"
         );
 
-
     let value =
         Number(input.value) || 1;
 
-
     value += amount;
-
 
     if (value < 1) {
         value = 1;
     }
-
 
     input.value = value;
 
@@ -1215,10 +1392,8 @@ document
                         button.dataset.section;
 
                     showSection(section);
-
                 }
             );
-
         }
     );
 
@@ -1226,9 +1401,7 @@ document
 function showSection(section) {
 
     document
-        .querySelectorAll(
-            ".nav-item"
-        )
+        .querySelectorAll(".nav-item")
         .forEach(
             item => {
 
@@ -1237,15 +1410,12 @@ function showSection(section) {
                     item.dataset.section ===
                         section
                 );
-
             }
         );
 
 
     document
-        .querySelectorAll(
-            ".page-section"
-        )
+        .querySelectorAll(".page-section")
         .forEach(
             page => {
 
@@ -1253,7 +1423,6 @@ function showSection(section) {
                     "active-section",
                     page.id === section
                 );
-
             }
         );
 
@@ -1274,15 +1443,14 @@ function showSection(section) {
 
         history:
             "Order History"
-
     };
 
 
-    document.getElementById(
-        "pageTitle"
-    ).textContent =
+    setText(
+        "pageTitle",
         titles[section] ||
-        "ShopFlow";
+            "ShopFlow"
+    );
 }
 
 
@@ -1297,6 +1465,8 @@ async function refreshAll() {
     await loadOrders();
 
     await loadHistory();
+
+    updateDashboard();
 
     updateOrderPreview();
 }
@@ -1317,23 +1487,21 @@ function showToast(
             "toast"
         );
 
-
     const icon =
         document.getElementById(
             "toastIcon"
         );
 
 
-    document.getElementById(
-        "toastTitle"
-    ).textContent =
-        title;
+    setText(
+        "toastTitle",
+        title
+    );
 
-
-    document.getElementById(
-        "toastMessage"
-    ).textContent =
-        message;
+    setText(
+        "toastMessage",
+        message
+    );
 
 
     icon.textContent =
@@ -1370,6 +1538,32 @@ function showToast(
    HELPERS
    ========================================== */
 
+function getOrderAmount(order) {
+
+    return Number(
+        order?.totalAmount ??
+        order?.amount ??
+        0
+    );
+}
+
+
+function setText(
+    elementID,
+    value
+) {
+
+    const element =
+        document.getElementById(
+            elementID
+        );
+
+    if (element) {
+        element.textContent = value;
+    }
+}
+
+
 function formatMoney(value) {
 
     return Number(value || 0)
@@ -1385,12 +1579,272 @@ function formatMoney(value) {
 function escapeHtml(value) {
 
     return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
+        .replaceAll(
+            "&",
+            "&amp;"
+        )
+        .replaceAll(
+            "<",
+            "&lt;"
+        )
+        .replaceAll(
+            ">",
+            "&gt;"
+        )
+        .replaceAll(
+            '"',
+            "&quot;"
+        )
+        .replaceAll(
+            "'",
+            "&#039;"
+        );
 }
+/* =========================================================
+   SHOPFLOW — FINAL UI MICRO-INTERACTIONS
+   Visual only — does NOT modify API/order logic
+   ========================================================= */
+
+const dashboardAnimatedValues = {
+    productCount: 0,
+    pendingCount: 0,
+    processedCount: 0,
+    lowStockCount: 0,
+    totalValue: 0,
+    averageOrderValue: 0,
+    pendingOrderValue: 0,
+    inventoryUnits: 0
+};
+
+function animateDashboardNumber(elementId, targetValue, formatter, duration = 700) {
+    const element = document.getElementById(elementId);
+
+    if (!element) return;
+
+    const target = Number(targetValue) || 0;
+    const start = Number(dashboardAnimatedValues[elementId]) || 0;
+
+    if (start === target) {
+        element.textContent = formatter(target);
+        return;
+    }
+
+    const startTime = performance.now();
+
+    function animate(currentTime) {
+        const progress = Math.min(
+            (currentTime - startTime) / duration,
+            1
+        );
+
+        // Smooth ease-out
+        const eased = 1 - Math.pow(1 - progress, 3);
+
+        const currentValue =
+            start + (target - start) * eased;
+
+        element.textContent = formatter(currentValue);
+
+        if (progress < 1) {
+            requestAnimationFrame(animate);
+        } else {
+            element.textContent = formatter(target);
+            dashboardAnimatedValues[elementId] = target;
+        }
+    }
+
+    requestAnimationFrame(animate);
+}
+
+function animateDashboardStats() {
+    animateDashboardNumber(
+        "productCount",
+        products.length,
+        value => Math.round(value).toLocaleString("en-IN")
+    );
+
+    animateDashboardNumber(
+        "pendingCount",
+        orders.length,
+        value => Math.round(value).toLocaleString("en-IN")
+    );
+
+    animateDashboardNumber(
+        "processedCount",
+        history.length,
+        value => Math.round(value).toLocaleString("en-IN")
+    );
+
+    const totalValue = history.reduce(
+        (sum, order) => sum + getOrderAmount(order),
+        0
+    );
+
+    const pendingValue = orders.reduce(
+        (sum, order) => sum + getOrderAmount(order),
+        0
+    );
+
+    const averageValue =
+        history.length > 0
+            ? totalValue / history.length
+            : 0;
+
+    const inventoryUnits = products.reduce(
+        (sum, product) => sum + Number(product.stock || 0),
+        0
+    );
+
+    const lowStockCount = products.filter(
+        product => Number(product.stock || 0) <= 5
+    ).length;
+
+    animateDashboardNumber(
+        "lowStockCount",
+        lowStockCount,
+        value => Math.round(value).toLocaleString("en-IN")
+    );
+
+    animateDashboardNumber(
+        "totalValue",
+        totalValue,
+        value => formatMoney(value)
+    );
+
+    animateDashboardNumber(
+        "pendingOrderValue",
+        pendingValue,
+        value => formatMoney(value)
+    );
+
+    animateDashboardNumber(
+        "averageOrderValue",
+        averageValue,
+        value => formatMoney(value)
+    );
+
+    animateDashboardNumber(
+        "inventoryUnits",
+        inventoryUnits,
+        value => Math.round(value).toLocaleString("en-IN")
+    );
+}
+
+
+/* ---------------------------------------------------------
+   Smooth queue progress animation
+   --------------------------------------------------------- */
+
+function animateQueueProgress() {
+    const progressBar = document.getElementById("queueProgress");
+
+    if (!progressBar) return;
+
+    const pending = orders.length;
+    const processed = history.length;
+    const total = pending + processed;
+
+    const percentage =
+        total > 0
+            ? Math.round((processed / total) * 100)
+            : 0;
+
+    requestAnimationFrame(() => {
+        progressBar.style.width = `${percentage}%`;
+    });
+}
+
+
+/* ---------------------------------------------------------
+   Dashboard refresh pulse
+   --------------------------------------------------------- */
+
+function pulseDashboard() {
+    const dashboard = document.getElementById("dashboard");
+
+    if (!dashboard) return;
+
+    dashboard.classList.remove("dashboard-refresh");
+
+    // Force browser to restart animation
+    void dashboard.offsetWidth;
+
+    dashboard.classList.add("dashboard-refresh");
+
+    setTimeout(() => {
+        dashboard.classList.remove("dashboard-refresh");
+    }, 500);
+}
+
+
+/* ---------------------------------------------------------
+   Button click feedback
+   --------------------------------------------------------- */
+
+document.addEventListener("click", event => {
+    const button = event.target.closest(
+        "button, .nav-item, .action-btn, .text-btn"
+    );
+
+    if (!button) return;
+
+    button.classList.remove("ui-click");
+
+    void button.offsetWidth;
+
+    button.classList.add("ui-click");
+
+    setTimeout(() => {
+        button.classList.remove("ui-click");
+    }, 220);
+});
+
+
+/* ---------------------------------------------------------
+   Card hover polish
+   --------------------------------------------------------- */
+
+document.addEventListener("mouseenter", event => {
+    const card = event.target.closest(
+        ".stat-card, .product-card, .panel, .queue-box, .stock-alert"
+    );
+
+    if (!card) return;
+
+    card.classList.add("ui-hover");
+}, true);
+
+document.addEventListener("mouseleave", event => {
+    const card = event.target.closest(
+        ".stat-card, .product-card, .panel, .queue-box, .stock-alert"
+    );
+
+    if (!card) return;
+
+    card.classList.remove("ui-hover");
+}, true);
+
+
+/* ---------------------------------------------------------
+   Run visual animations after data updates
+   --------------------------------------------------------- */
+
+function runFinalUIAnimations() {
+    animateDashboardStats();
+    animateQueueProgress();
+    pulseDashboard();
+}
+
+
+/* ---------------------------------------------------------
+   Small delay so the existing app finishes its first render
+   --------------------------------------------------------- */
+
+window.addEventListener("load", () => {
+    setTimeout(() => {
+        runFinalUIAnimations();
+    }, 350);
+});
 
 
 /* ==========================================

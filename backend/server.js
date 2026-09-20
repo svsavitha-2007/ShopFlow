@@ -1,20 +1,59 @@
 const express = require("express");
 const cors = require("cors");
 const { spawn } = require("child_process");
+const path = require("path");
 
 const app = express();
+
+const PORT = 3000;
+
+/* =====================================================
+   MIDDLEWARE
+   ===================================================== */
 
 app.use(cors());
 app.use(express.json());
 
-const PORT = 3000;
+
+/* =====================================================
+   FRONTEND
+   ===================================================== */
+
+/*
+   Project structure:
+
+   ShopFlow-dashboard-updated/
+   │
+   ├── index.html
+   ├── style.css
+   ├── script.js
+   │
+   └── backend/
+       ├── server.js
+       └── ecommerce.exe
+*/
+
+const frontendPath = path.join(__dirname, "..");
+
+app.use(express.static(frontendPath));
 
 
 /* =====================================================
    START C PROGRAM IN API MODE
    ===================================================== */
 
-const cProgram = spawn("./ecommerce.exe", ["api"]);
+const cExecutable = path.join(
+    __dirname,
+    "ecommerce.exe"
+);
+
+const cProgram = spawn(
+    cExecutable,
+    ["api"],
+    {
+        cwd: __dirname
+    }
+);
 
 
 /* =====================================================
@@ -33,42 +72,57 @@ cProgram.stdout.on("data", (data) => {
 
     responseBuffer += data.toString();
 
-    const lines =
-        responseBuffer.split("\n");
+    const lines = responseBuffer.split("\n");
 
-    responseBuffer =
-        lines.pop();
+    responseBuffer = lines.pop();
+
 
     lines.forEach((line) => {
 
         line = line.trim();
 
-        if (line.length === 0) {
+        if (!line) {
             return;
         }
 
-        console.log(
-            "C RAW RESPONSE:",
-            line
-        );
+        console.log("C RAW RESPONSE:", line);
 
-        const request =
-            pendingRequests.shift();
 
-        if (request) {
+        /*
+           The C program may print decorative /
+           human-readable output before JSON.
 
-            try {
+           Only JSON lines should resolve API requests.
+        */
 
-                const result =
-                    JSON.parse(line);
+        try {
 
+            const result = JSON.parse(line);
+
+            const request = pendingRequests.shift();
+
+            if (request) {
                 request.resolve(result);
-
-            } catch (error) {
-
-                request.reject(error);
-
             }
+
+        } catch (error) {
+
+            /*
+               Ignore non-JSON C output.
+
+               Example:
+
+               ============================
+               PROCESSING ORDER
+               ============================
+
+               These lines are NOT API responses.
+            */
+
+            console.log(
+                "C INFO:",
+                line
+            );
 
         }
 
@@ -105,6 +159,20 @@ cProgram.on("close", (code) => {
 
 
 /* =====================================================
+   C PROGRAM ERROR
+   ===================================================== */
+
+cProgram.on("error", (error) => {
+
+    console.error(
+        "FAILED TO START C PROGRAM:",
+        error
+    );
+
+});
+
+
+/* =====================================================
    SEND COMMAND TO C
    ===================================================== */
 
@@ -117,10 +185,12 @@ function sendCommand(command) {
             command
         );
 
+
         pendingRequests.push({
             resolve,
             reject
         });
+
 
         cProgram.stdin.write(
             command + "\n"
@@ -132,16 +202,17 @@ function sendCommand(command) {
 
 
 /* =====================================================
-   HOME
+   HOME / FRONTEND
    ===================================================== */
 
 app.get("/", (req, res) => {
 
-    res.json({
-        success: true,
-        message:
-            "E-Commerce Order Management API is running!"
-    });
+    res.sendFile(
+        path.join(
+            frontendPath,
+            "index.html"
+        )
+    );
 
 });
 
@@ -195,10 +266,12 @@ app.get(
             const productID =
                 Number(req.params.id);
 
+
             const result =
                 await sendCommand(
                     `SEARCH|${productID}`
                 );
+
 
             res.json(result);
 
@@ -313,6 +386,7 @@ app.get(
                     "VIEW_QUEUE"
                 );
 
+
             res.json(result);
 
         } catch (error) {
@@ -348,6 +422,7 @@ app.post(
                 await sendCommand(
                     "PROCESS_ORDER"
                 );
+
 
             res.json(result);
 
@@ -539,6 +614,11 @@ app.listen(
 
         console.log(
             `Server running at http://localhost:${PORT}`
+        );
+
+        console.log(
+            "Frontend:",
+            frontendPath
         );
 
         console.log(
