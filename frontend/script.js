@@ -5,41 +5,80 @@ let orders = [];
 let history = [];
 
 
-/* ==========================================
+/* =========================================================
    API HELPER
-   ========================================== */
+   ========================================================= */
 
 async function apiRequest(endpoint, options = {}) {
 
-    const response = await fetch(
-        API + endpoint,
-        options
-    );
+    try {
 
-    if (!response.ok) {
-        throw new Error(
-            `API error: ${response.status}`
+        const response = await fetch(
+            API + endpoint,
+            {
+                ...options,
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(options.headers || {})
+                }
+            }
         );
-    }
 
-    return response.json();
+        let data;
+
+        try {
+            data = await response.json();
+        } catch {
+            throw new Error(
+                `Server returned invalid JSON (${response.status})`
+            );
+        }
+
+        if (!response.ok) {
+
+            throw new Error(
+                data.message ||
+                `API error: ${response.status}`
+            );
+        }
+
+        return data;
+
+    } catch (error) {
+
+        console.error(
+            `API request failed: ${endpoint}`,
+            error
+        );
+
+        throw error;
+    }
 }
 
 
-/* ==========================================
-   INITIAL LOAD
-   ========================================== */
+/* =========================================================
+   INITIALIZATION
+   ========================================================= */
 
 async function initializeApp() {
+
+    console.log("ShopFlow initializing...");
 
     try {
 
         await loadProducts();
+
         await loadOrders();
+
         await loadHistory();
 
         updateDashboard();
+
         updateOrderPreview();
+
+        setupNavigation();
+
+        console.log("ShopFlow initialized successfully.");
 
     } catch (error) {
 
@@ -50,16 +89,16 @@ async function initializeApp() {
 
         showToast(
             "Connection Error",
-            "Make sure the Node.js server is running.",
+            "Make sure the Node.js server is running on port 3000.",
             true
         );
     }
 }
 
 
-/* ==========================================
+/* =========================================================
    PRODUCTS
-   ========================================== */
+   ========================================================= */
 
 async function loadProducts() {
 
@@ -67,19 +106,36 @@ async function loadProducts() {
         "/api/products"
     );
 
-    products = data.products || [];
+    products =
+        Array.isArray(data.products)
+            ? data.products
+            : [];
 
     renderProducts();
+
     populateProductSelect();
+
     updateDashboard();
 }
 
 
+/* =========================================================
+   PRODUCT RENDERING
+   ========================================================= */
+
 function renderProducts() {
 
-    const grid = document.getElementById(
-        "productGrid"
-    );
+    const grid =
+        document.getElementById(
+            "productGrid"
+        );
+
+    if (!grid) {
+        console.warn(
+            "productGrid not found."
+        );
+        return;
+    }
 
     if (!products.length) {
 
@@ -92,60 +148,73 @@ function renderProducts() {
         return;
     }
 
-    grid.innerHTML = products.map(
-        product => {
+    grid.innerHTML =
+        products
+            .map(product => {
 
-            const stock = Number(
-                product.stock || 0
-            );
+                const stock =
+                    Number(product.stock || 0);
 
-            let stockClass = "stock-good";
+                let stockClass = "stock-good";
 
-            if (stock <= 0) {
-                stockClass = "stock-out";
-            } else if (stock <= 5) {
-                stockClass = "stock-low";
-            }
+                if (stock <= 0) {
+                    stockClass = "stock-empty";
+                } else if (stock <= 5) {
+                    stockClass = "stock-low";
+                }
 
-            return `
-                <div class="product-card">
+                return `
+                    <div class="product-card">
 
-                    <span class="product-id">
-                        PRODUCT #${product.id}
-                    </span>
-
-                    <h3>
-                        ${escapeHtml(product.name)}
-                    </h3>
-
-                    <div class="product-price">
-                        ₹${formatMoney(product.price)}
-                    </div>
-
-                    <div class="product-stock">
-
-                        <span>
-                            Available stock
+                        <span class="product-id">
+                            PRODUCT #${product.id}
                         </span>
 
-                        <strong class="${stockClass}">
-                            ${stock} units
-                        </strong>
+                        <h3>
+                            ${escapeHtml(product.name)}
+                        </h3>
+
+                        <div class="product-price">
+                            ₹${formatMoney(product.price)}
+                        </div>
+
+                        <div class="product-stock">
+
+                            <span>
+                                Available stock
+                            </span>
+
+                            <strong class="${stockClass}">
+                                ${stock} units
+                            </strong>
+
+                        </div>
 
                     </div>
+                `;
 
-                </div>
-            `;
-        }
-    ).join("");
+            })
+            .join("");
 }
 
 
+/* =========================================================
+   PRODUCT SELECT
+   ========================================================= */
+
 function populateProductSelect() {
 
-    const select = document.getElementById(
-        "orderProduct"
-    );
+    const select =
+        document.getElementById(
+            "orderProduct"
+        );
+
+    if (!select) {
+        console.warn(
+            "orderProduct select not found."
+        );
+        return;
+    }
 
     select.innerHTML = `
         <option value="">
@@ -153,42 +222,68 @@ function populateProductSelect() {
         </option>
     `;
 
-    products.forEach(
-        product => {
+    products.forEach(product => {
 
-            const option =
-                document.createElement(
-                    "option"
-                );
+        const option =
+            document.createElement(
+                "option"
+            );
 
-            option.value = product.id;
+        option.value =
+            product.id;
 
-            option.textContent =
-                `${product.name} — ₹${formatMoney(product.price)}`;
+        option.textContent =
+            `${product.name} — ₹${formatMoney(product.price)}`;
 
-            select.appendChild(option);
-        }
-    );
+        select.appendChild(option);
+    });
 }
 
 
-/* ==========================================
+/* =========================================================
    PRODUCT SEARCH
-   ========================================== */
+   ========================================================= */
 
 async function searchProduct() {
 
-    const input = document.getElementById(
-        "productSearch"
-    );
+    const input =
+        document.getElementById(
+            "productSearch"
+        );
 
-    const id = Number(input.value);
+    const result =
+        document.getElementById(
+            "searchResult"
+        );
+
+    if (!input) {
+
+        showToast(
+            "Search Error",
+            "Product search field was not found.",
+            true
+        );
+
+        return;
+    }
+
+    const id =
+        Number(input.value);
 
     if (!Number.isInteger(id)) {
 
+        if (result) {
+
+            result.innerHTML = `
+                <div class="search-highlight">
+                    Enter a valid Product ID.
+                </div>
+            `;
+        }
+
         showToast(
-            "Search",
-            "Enter a valid Product ID.",
+            "Invalid Product ID",
+            "Please enter a valid numeric Product ID.",
             true
         );
 
@@ -197,60 +292,68 @@ async function searchProduct() {
 
     try {
 
-        const data = await apiRequest(
-            `/api/products/${id}`
-        );
-
-        const result = document.getElementById(
-            "searchResult"
-        );
+        const data =
+            await apiRequest(
+                `/api/products/${id}`
+            );
 
         if (
             data.success &&
             data.product
         ) {
 
-            const product = data.product;
+            const product =
+                data.product;
 
-            result.innerHTML = `
-                <div class="search-highlight">
+            if (result) {
 
-                    ✓ BST Search Found:
+                result.innerHTML = `
+                    <div class="search-highlight">
 
-                    <strong>
-                        ${escapeHtml(product.name)}
-                    </strong>
+                        ✓ BST Search Found
 
-                    &nbsp; • &nbsp;
+                        <strong>
+                            ${escapeHtml(product.name)}
+                        </strong>
 
-                    Product #${product.id}
+                        <span>
+                            Product #${product.id}
+                        </span>
 
-                    &nbsp; • &nbsp;
+                        <span>
+                            ₹${formatMoney(product.price)}
+                        </span>
 
-                    ₹${formatMoney(product.price)}
+                        <span>
+                            ${product.stock} in stock
+                        </span>
 
-                    &nbsp; • &nbsp;
-
-                    ${product.stock} in stock
-
-                </div>
-            `;
+                    </div>
+                `;
+            }
 
         } else {
 
-            result.innerHTML = `
-                <div class="search-highlight">
-                    No product found for ID ${id}.
-                </div>
-            `;
+            if (result) {
+
+                result.innerHTML = `
+                    <div class="search-highlight">
+                        No product found for ID ${id}.
+                    </div>
+                `;
+            }
         }
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Product search failed:",
+            error
+        );
 
         showToast(
             "Search Failed",
+            error.message ||
             "Could not search the product.",
             true
         );
@@ -258,31 +361,93 @@ async function searchProduct() {
 }
 
 
-/* ==========================================
+/* =========================================================
    ORDERS
-   ========================================== */
+   ========================================================= */
 
 async function loadOrders() {
 
-    const data = await apiRequest(
-        "/api/orders"
-    );
+    const data =
+        await apiRequest(
+            "/api/orders"
+        );
 
-    orders = data.orders || [];
+    orders =
+        Array.isArray(data.orders)
+            ? data.orders
+            : [];
 
     renderOrders();
+
     renderQueue();
+
     renderDashboardOrders();
 
     updateDashboard();
+
+    updateOrderPreview();
 }
 
 
+/* =========================================================
+   ORDER ID HELPER
+   ========================================================= */
+
+function getOrderId(order) {
+
+    return Number(
+        order.orderID ??
+        order.id ??
+        0
+    );
+}
+
+
+/* =========================================================
+   ORDER PRODUCT ID HELPER
+   ========================================================= */
+
+function getOrderProductId(order) {
+
+    return Number(
+        order.productID ??
+        order.productId ??
+        0
+    );
+}
+
+
+/* =========================================================
+   ORDER AMOUNT HELPER
+   ========================================================= */
+
+function getOrderAmount(order) {
+
+    return Number(
+        order.totalAmount ??
+        order.amount ??
+        0
+    );
+}
+
+
+/* =========================================================
+   ORDER TABLE
+   ========================================================= */
+
 function renderOrders() {
 
-    const container = document.getElementById(
-        "ordersTable"
-    );
+    const container =
+        document.getElementById(
+            "ordersTable"
+        );
+
+    if (!container) {
+        console.warn(
+            "ordersTable not found."
+        );
+        return;
+    }
 
     if (!orders.length) {
 
@@ -300,86 +465,109 @@ function renderOrders() {
         <div class="order-row order-header">
 
             <div>ID</div>
+
             <div>Product</div>
+
             <div>Quantity</div>
+
             <div>Amount</div>
+
             <div>Actions</div>
 
         </div>
     `;
 
-    orders.forEach(
-        order => {
+    orders.forEach(order => {
 
-            const product =
-                products.find(
-                    p =>
-                        Number(p.id) ===
-                        Number(order.productID)
-                );
+        const orderID =
+            getOrderId(order);
 
-            const productName =
-                product
-                    ? product.name
-                    : `Product ${order.productID}`;
+        const productID =
+            getOrderProductId(order);
 
-            html += `
+        const quantity =
+            Number(order.quantity || 0);
 
-                <div class="order-row">
+        const amount =
+            getOrderAmount(order);
 
-                    <div class="order-id">
-                        #${order.orderID}
-                    </div>
+        const product =
+            products.find(
+                p =>
+                    Number(p.id) ===
+                    productID
+            );
 
-                    <div>
-                        ${escapeHtml(productName)}
-                    </div>
+        const productName =
+            product
+                ? product.name
+                : `Product ${productID}`;
 
-                    <div>
-                        ${order.quantity}
-                    </div>
+        html += `
 
-                    <div>
-                        ₹${formatMoney(getOrderAmount(order))}
-                    </div>
+            <div class="order-row">
 
-                    <div class="action-buttons">
+                <div class="order-id">
+                    #${orderID}
+                </div>
 
-                        <button
-                            class="small-button"
-                            onclick="editOrder(
-                                ${order.orderID},
-                                ${order.quantity}
-                            )"
-                        >
-                            Edit
-                        </button>
+                <div>
+                    ${escapeHtml(productName)}
+                </div>
 
-                        <button
-                            class="small-button"
-                            onclick="cancelOrder(
-                                ${order.orderID}
-                            )"
-                        >
-                            Cancel
-                        </button>
+                <div>
+                    ${quantity}
+                </div>
 
-                    </div>
+                <div>
+                    ₹${formatMoney(amount)}
+                </div>
+
+                <div class="action-buttons">
+
+                    <button
+                        type="button"
+                        class="small-button"
+                        onclick="editOrder(${orderID}, ${quantity})"
+                    >
+                        Edit
+                    </button>
+
+                    <button
+                        type="button"
+                        class="small-button"
+                        onclick="cancelOrder(${orderID})"
+                    >
+                        Cancel
+                    </button>
 
                 </div>
-            `;
-        }
-    );
+
+            </div>
+        `;
+    });
 
     container.innerHTML = html;
 }
 
 
+/* =========================================================
+   QUEUE
+   ========================================================= */
+
 function renderQueue() {
 
-    const track = document.getElementById(
-        "queueTrack"
-    );
+    const track =
+        document.getElementById(
+            "queueTrack"
+        );
+
+    if (!track) {
+        console.warn(
+            "queueTrack not found."
+        );
+        return;
+    }
 
     if (!orders.length) {
 
@@ -392,43 +580,56 @@ function renderQueue() {
         return;
     }
 
-    track.innerHTML = orders.map(
-        (order, index) => {
+    track.innerHTML =
+        orders
+            .map((order, index) => {
 
-            const product =
-                products.find(
-                    p =>
-                        Number(p.id) ===
-                        Number(order.productID)
-                );
+                const orderID =
+                    getOrderId(order);
 
-            return `
-                ${
-                    index > 0
-                        ? `<span class="queue-arrow">→</span>`
-                        : ""
-                }
+                const productID =
+                    getOrderProductId(order);
 
-                <div class="queue-box">
+                const product =
+                    products.find(
+                        p =>
+                            Number(p.id) ===
+                            productID
+                    );
 
-                    <strong>
-                        #${order.orderID}
-                    </strong>
+                return `
 
-                    <small>
-                        ${
-                            product
-                                ? escapeHtml(product.name)
-                                : "Product"
-                        }
-                    </small>
+                    ${
+                        index > 0
+                            ? `<span class="queue-arrow">→</span>`
+                            : ""
+                    }
 
-                </div>
-            `;
-        }
-    ).join("");
+                    <div class="queue-box">
+
+                        <strong>
+                            #${orderID}
+                        </strong>
+
+                        <small>
+                            ${
+                                product
+                                    ? escapeHtml(product.name)
+                                    : `Product ${productID}`
+                            }
+                        </small>
+
+                    </div>
+                `;
+
+            })
+            .join("");
 }
 
+
+/* =========================================================
+   DASHBOARD ORDER PREVIEW
+   ========================================================= */
 
 function renderDashboardOrders() {
 
@@ -436,6 +637,10 @@ function renderDashboardOrders() {
         document.getElementById(
             "dashboardOrders"
         );
+
+    if (!container) {
+        return;
+    }
 
     const recent =
         orders.slice(0, 4);
@@ -452,212 +657,363 @@ function renderDashboardOrders() {
     }
 
     container.innerHTML =
-        recent.map(
-            order => {
+        recent
+            .map(order => {
+
+                const orderID =
+                    getOrderId(order);
+
+                const productID =
+                    getOrderProductId(order);
+
+                const amount =
+                    getOrderAmount(order);
 
                 const product =
                     products.find(
                         p =>
                             Number(p.id) ===
-                            Number(order.productID)
+                            productID
                     );
 
                 return `
+
                     <div class="order-row">
 
                         <div class="order-id">
-                            #${order.orderID}
+                            #${orderID}
                         </div>
 
                         <div>
                             ${
                                 product
                                     ? escapeHtml(product.name)
-                                    : "Product"
+                                    : `Product ${productID}`
                             }
                         </div>
 
                         <div>
-                            ×${order.quantity}
+                            ×${Number(order.quantity || 0)}
                         </div>
 
                         <div>
-                            ₹${formatMoney(
-                                getOrderAmount(order)
-                            )}
+                            ₹${formatMoney(amount)}
                         </div>
 
                         <div>
+
                             <span class="status-badge status-pending">
                                 PENDING
                             </span>
+
                         </div>
 
                     </div>
                 `;
-            }
-        ).join("");
+
+            })
+            .join("");
 }
 
 
-/* ==========================================
+/* =========================================================
    PLACE ORDER
-   ========================================== */
+   ========================================================= */
 
-document
-    .getElementById("orderForm")
-    .addEventListener(
-        "submit",
-        async function(event) {
+async function placeOrder(event) {
 
-            event.preventDefault();
+    if (event) {
+        event.preventDefault();
+    }
 
-            const productID =
-                Number(
-                    document.getElementById(
-                        "orderProduct"
-                    ).value
-                );
+    const productSelect =
+        document.getElementById(
+            "orderProduct"
+        );
 
-            const quantity =
-                Number(
-                    document.getElementById(
-                        "orderQuantity"
-                    ).value
-                );
+    const quantityInput =
+        document.getElementById(
+            "orderQuantity"
+        );
 
-            if (
-                !Number.isInteger(productID) ||
-                productID <= 0 ||
-                !Number.isInteger(quantity) ||
-                quantity < 1
-            ) {
+    if (!productSelect || !quantityInput) {
 
-                showToast(
-                    "Invalid Order",
-                    "Select a product and enter a valid quantity.",
-                    true
-                );
+        showToast(
+            "Order Error",
+            "Order form elements were not found.",
+            true
+        );
 
-                return;
-            }
+        return;
+    }
 
-            const selectedProduct =
-                products.find(
-                    product =>
-                        Number(product.id) ===
-                        productID
-                );
+    const productID =
+        Number(productSelect.value);
 
-            if (!selectedProduct) {
+    const quantity =
+        Number(quantityInput.value);
 
-                showToast(
-                    "Invalid Product",
-                    "The selected product could not be found.",
-                    true
-                );
+    if (
+        !Number.isInteger(productID) ||
+        productID <= 0
+    ) {
 
-                return;
-            }
+        showToast(
+            "Select Product",
+            "Please select a product.",
+            true
+        );
 
-            const availableStock =
-                Number(
-                    selectedProduct.stock || 0
-                );
+        return;
+    }
 
-            if (quantity > availableStock) {
+    if (
+        !Number.isInteger(quantity) ||
+        quantity < 1
+    ) {
 
-                showToast(
-                    "Insufficient Stock",
-                    `Only ${availableStock} units are available.`,
-                    true
-                );
+        showToast(
+            "Invalid Quantity",
+            "Quantity must be at least 1.",
+            true
+        );
 
-                return;
-            }
+        return;
+    }
 
-            try {
+    try {
 
-                const data =
-                    await apiRequest(
-                        "/api/orders",
-                        {
-                            method: "POST",
+        const data =
+            await apiRequest(
+                "/api/orders",
+                {
+                    method: "POST",
 
-                            headers: {
-                                "Content-Type":
-                                    "application/json"
-                            },
-
-                            body:
-                                JSON.stringify({
-                                    productID,
-                                    quantity
-                                })
-                        }
-                    );
-
-                if (!data.success) {
-
-                    showToast(
-                        "Order Failed",
-                        data.message ||
-                            "Unable to place order.",
-                        true
-                    );
-
-                    return;
+                    body: JSON.stringify({
+                        productID,
+                        quantity
+                    })
                 }
+            );
 
-                const createdOrder =
-                    data.order || {};
+        if (data.success === false) {
 
-                const createdOrderID =
-                    createdOrder.id ??
-                    createdOrder.orderID ??
-                    "new";
+            showToast(
+                "Order Failed",
+                data.message ||
+                "Could not place order.",
+                true
+            );
 
-                showToast(
-                    "Order Placed",
-                    `Order #${createdOrderID} added to the FIFO queue.`
-                );
-
-                document
-                    .getElementById(
-                        "orderForm"
-                    )
-                    .reset();
-
-                document
-                    .getElementById(
-                        "orderQuantity"
-                    )
-                    .value = 1;
-
-                await refreshAll();
-
-            } catch (error) {
-
-                console.error(
-                    "Place order error:",
-                    error
-                );
-
-                showToast(
-                    "Order Failed",
-                    "Could not connect to the API.",
-                    true
-                );
-            }
+            return;
         }
+
+        showToast(
+            "Order Placed",
+            data.message ||
+            "Your order was added to the queue."
+        );
+
+        quantityInput.value = 1;
+
+        await refreshAll();
+
+    } catch (error) {
+
+        console.error(
+            "Place order failed:",
+            error
+        );
+
+        showToast(
+            "Order Failed",
+            error.message ||
+            "Could not place the order.",
+            true
+        );
+    }
+}
+
+
+/* =========================================================
+   EDIT ORDER
+   ========================================================= */
+
+async function editOrder(
+    orderID,
+    currentQuantity
+) {
+
+    console.log(
+        "Edit order clicked:",
+        orderID,
+        currentQuantity
     );
 
+    const newQuantity =
+        prompt(
+            `Enter new quantity for Order #${orderID}:`,
+            currentQuantity
+        );
 
-/* ==========================================
-   PROCESS ORDER
-   ========================================== */
+    if (newQuantity === null) {
+        return;
+    }
+
+    const quantity =
+        Number(newQuantity);
+
+    if (
+        !Number.isInteger(quantity) ||
+        quantity <= 0
+    ) {
+
+        showToast(
+            "Invalid Quantity",
+            "Please enter a positive whole number.",
+            true
+        );
+
+        return;
+    }
+
+    try {
+
+        const data =
+            await apiRequest(
+                `/api/orders/${orderID}`,
+                {
+                    method: "PUT",
+
+                    body: JSON.stringify({
+                        quantity
+                    })
+                }
+            );
+
+        console.log(
+            "Edit response:",
+            data
+        );
+
+        if (data.success === false) {
+
+            showToast(
+                "Edit Failed",
+                data.message ||
+                "Could not update the order.",
+                true
+            );
+
+            return;
+        }
+
+        showToast(
+            "Order Updated",
+            data.message ||
+            "Order quantity updated successfully."
+        );
+
+        await refreshAll();
+
+    } catch (error) {
+
+        console.error(
+            "Edit order failed:",
+            error
+        );
+
+        showToast(
+            "Edit Failed",
+            error.message ||
+            "Could not update the order.",
+            true
+        );
+    }
+}
+
+
+/* =========================================================
+   CANCEL ORDER
+   ========================================================= */
+
+async function cancelOrder(orderID) {
+
+    console.log(
+        "Cancel order clicked:",
+        orderID
+    );
+
+    const confirmed =
+        confirm(
+            `Cancel Order #${orderID}?`
+        );
+
+    if (!confirmed) {
+        return;
+    }
+
+    try {
+
+        const data =
+            await apiRequest(
+                `/api/orders/${orderID}`,
+                {
+                    method: "DELETE"
+                }
+            );
+
+        console.log(
+            "Cancel response:",
+            data
+        );
+
+        if (data.success === false) {
+
+            showToast(
+                "Cancel Failed",
+                data.message ||
+                "Could not cancel the order.",
+                true
+            );
+
+            return;
+        }
+
+        showToast(
+            "Order Cancelled",
+            data.message ||
+            "Order cancelled successfully."
+        );
+
+        await refreshAll();
+
+    } catch (error) {
+
+        console.error(
+            "Cancel order failed:",
+            error
+        );
+
+        showToast(
+            "Cancel Failed",
+            error.message ||
+            "Could not cancel the order.",
+            true
+        );
+    }
+}
+
+
+/* =========================================================
+   PROCESS NEXT ORDER
+   ========================================================= */
 
 async function processNextOrder() {
+
+    console.log(
+        "Process Next Order clicked."
+    );
 
     if (!orders.length) {
 
@@ -680,41 +1036,41 @@ async function processNextOrder() {
                 }
             );
 
-        if (!data.success) {
+        console.log(
+            "Process response:",
+            data
+        );
+
+        if (data.success === false) {
 
             showToast(
                 "Processing Failed",
                 data.message ||
-                    "Could not process the order.",
+                "Could not process the order.",
                 true
             );
 
             return;
         }
 
-        const processedOrder =
-            data.order || {};
-
-        const processedID =
-            processedOrder.id ??
-            processedOrder.orderID ??
-            "";
-
         showToast(
             "Order Processed",
-            processedID
-                ? `Order #${processedID} completed successfully.`
-                : "Order completed successfully."
+            data.message ||
+            "The next order was processed."
         );
 
         await refreshAll();
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Process order failed:",
+            error
+        );
 
         showToast(
             "Processing Failed",
+            error.message ||
             "Could not process the order.",
             true
         );
@@ -722,145 +1078,15 @@ async function processNextOrder() {
 }
 
 
-/* ==========================================
-   EDIT ORDER
-   ========================================== */
-
-async function editOrder(
-    orderID,
-    currentQuantity
-) {
-
-    const newQuantity =
-        Number(
-            prompt(
-                `Enter new quantity for Order #${orderID}:`,
-                currentQuantity
-            )
-        );
-
-    if (
-        !Number.isInteger(newQuantity) ||
-        newQuantity < 1
-    ) {
-        return;
-    }
-
-    try {
-
-        const data =
-            await apiRequest(
-                `/api/orders/${orderID}`,
-                {
-                    method: "PUT",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify({
-                            quantity:
-                                newQuantity
-                        })
-                }
-            );
-
-        if (!data.success) {
-
-            showToast(
-                "Edit Failed",
-                data.message ||
-                    "Could not update the order.",
-                true
-            );
-
-            return;
-        }
-
-        showToast(
-            "Order Updated",
-            `Order #${orderID} quantity changed.`
-        );
-
-        await refreshAll();
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            "Edit Failed",
-            "Could not update the order.",
-            true
-        );
-    }
-}
-
-
-/* ==========================================
-   CANCEL ORDER
-   ========================================== */
-
-async function cancelOrder(orderID) {
-
-    const confirmed =
-        confirm(
-            `Cancel Order #${orderID}?`
-        );
-
-    if (!confirmed) {
-        return;
-    }
-
-    try {
-
-        const data =
-            await apiRequest(
-                `/api/orders/${orderID}`,
-                {
-                    method: "DELETE"
-                }
-            );
-
-        if (!data.success) {
-
-            showToast(
-                "Cancellation Failed",
-                data.message ||
-                    "Could not cancel the order.",
-                true
-            );
-
-            return;
-        }
-
-        showToast(
-            "Order Cancelled",
-            `Order #${orderID} cancelled. You can undo this action.`
-        );
-
-        await refreshAll();
-
-    } catch (error) {
-
-        console.error(error);
-
-        showToast(
-            "Cancellation Failed",
-            "Could not cancel the order.",
-            true
-        );
-    }
-}
-
-
-/* ==========================================
+/* =========================================================
    UNDO
-   ========================================== */
+   ========================================================= */
 
 async function undoLastAction() {
+
+    console.log(
+        "Undo clicked."
+    );
 
     try {
 
@@ -872,12 +1098,17 @@ async function undoLastAction() {
                 }
             );
 
-        if (!data.success) {
+        console.log(
+            "Undo response:",
+            data
+        );
+
+        if (data.success === false) {
 
             showToast(
-                "Nothing to Undo",
+                "Undo Failed",
                 data.message ||
-                    "There is no action to undo.",
+                "Nothing could be undone.",
                 true
             );
 
@@ -885,28 +1116,33 @@ async function undoLastAction() {
         }
 
         showToast(
-            "Undo Successful",
-            "The previous action was reversed."
+            "Action Undone",
+            data.message ||
+            "The last action has been undone."
         );
 
         await refreshAll();
 
     } catch (error) {
 
-        console.error(error);
+        console.error(
+            "Undo failed:",
+            error
+        );
 
         showToast(
             "Undo Failed",
-            "Could not undo the action.",
+            error.message ||
+            "Could not undo the last action.",
             true
         );
     }
 }
 
 
-/* ==========================================
+/* =========================================================
    HISTORY
-   ========================================== */
+   ========================================================= */
 
 async function loadHistory() {
 
@@ -916,9 +1152,12 @@ async function loadHistory() {
         );
 
     history =
-        data.history || [];
+        Array.isArray(data.history)
+            ? data.history
+            : [];
 
     renderHistory();
+
     updateDashboard();
 }
 
@@ -930,11 +1169,18 @@ function renderHistory() {
             "historyTable"
         );
 
+    if (!container) {
+        console.warn(
+            "historyTable not found."
+        );
+        return;
+    }
+
     if (!history.length) {
 
         container.innerHTML = `
             <div class="loading">
-                No processed orders yet.
+                No order history yet.
             </div>
         `;
 
@@ -945,369 +1191,216 @@ function renderHistory() {
 
         <div class="history-row history-header">
 
-            <div>ID</div>
+            <div>Order</div>
+
+            <div>Action</div>
+
             <div>Product</div>
+
             <div>Quantity</div>
+
             <div>Amount</div>
-            <div>Status</div>
 
         </div>
     `;
 
-    history.forEach(
-        order => {
+    history.forEach(item => {
 
-            const product =
-                products.find(
-                    p =>
-                        Number(p.id) ===
-                        Number(order.productID)
-                );
+        const orderID =
+            Number(
+                item.orderID ??
+                item.id ??
+                0
+            );
 
-            html += `
+        const productID =
+            Number(
+                item.productID ??
+                item.productId ??
+                0
+            );
 
-                <div class="history-row">
+        const quantity =
+            Number(
+                item.quantity ??
+                item.newQuantity ??
+                0
+            );
 
-                    <div class="order-id">
-                        #${order.orderID}
-                    </div>
+        const amount =
+            Number(
+                item.totalAmount ??
+                item.amount ??
+                item.newAmount ??
+                0
+            );
 
-                    <div>
-                        ${
-                            product
-                                ? escapeHtml(product.name)
-                                : `Product ${order.productID}`
-                        }
-                    </div>
+        const action =
+            item.actionType ||
+            item.action ||
+            item.status ||
+            "Processed";
 
-                    <div>
-                        ${order.quantity}
-                    </div>
+        const product =
+            products.find(
+                p =>
+                    Number(p.id) ===
+                    productID
+            );
 
-                    <div>
-                        ₹${formatMoney(
-                            getOrderAmount(order)
-                        )}
-                    </div>
+        const productName =
+            product
+                ? product.name
+                : `Product ${productID}`;
 
-                    <div>
+        html += `
 
-                        <span class="status-badge status-processed">
-                            PROCESSED
-                        </span>
+            <div class="history-row">
 
-                    </div>
-
+                <div>
+                    #${orderID}
                 </div>
-            `;
-        }
-    );
+
+                <div>
+                    ${escapeHtml(action)}
+                </div>
+
+                <div>
+                    ${escapeHtml(productName)}
+                </div>
+
+                <div>
+                    ${quantity}
+                </div>
+
+                <div>
+                    ₹${formatMoney(amount)}
+                </div>
+
+            </div>
+        `;
+    });
 
     container.innerHTML = html;
 }
 
 
-/* ==========================================
+/* =========================================================
    DASHBOARD
-   ========================================== */
+   ========================================================= */
 
 function updateDashboard() {
 
-    /* ----------------------------------------
-       Basic statistics
-       ---------------------------------------- */
-
-    setText(
-        "productCount",
-        products.length
-    );
-
-    setText(
-        "pendingCount",
-        orders.length
-    );
-
-    setText(
-        "processedCount",
-        history.length
-    );
-
-
-    /* ----------------------------------------
-       Processed sales
-       ---------------------------------------- */
-
-    const processedValue =
-        history.reduce(
-            (sum, order) =>
-                sum +
-                getOrderAmount(order),
-            0
-        );
-
-
-    setText(
-        "totalValue",
-        `₹${formatMoney(processedValue)}`
-    );
-
-
-    /* ----------------------------------------
-       Pending order value
-       ---------------------------------------- */
-
-    const pendingValue =
-        orders.reduce(
-            (sum, order) =>
-                sum +
-                getOrderAmount(order),
-            0
-        );
-
-
-    setText(
-        "pendingOrderValue",
-        `₹${formatMoney(pendingValue)}`
-    );
-
-
-    /* ----------------------------------------
-       Average processed order value
-       ---------------------------------------- */
-
-    const averageOrderValue =
-        history.length > 0
-            ? processedValue / history.length
-            : 0;
-
-
-    setText(
-        "averageOrderValue",
-        `₹${formatMoney(averageOrderValue)}`
-    );
-
-
-    /* ----------------------------------------
-       Total inventory units
-       ---------------------------------------- */
-
-    const inventoryUnits =
-        products.reduce(
-            (sum, product) =>
-                sum +
-                Number(product.stock || 0),
-            0
-        );
-
-
-    setText(
-        "inventoryUnits",
-        inventoryUnits
-    );
-
-
-    /* ----------------------------------------
-       Low stock
-       ---------------------------------------- */
-
-    const lowStockProducts =
-        products.filter(
-            product =>
-                Number(product.stock || 0) <= 5
-        );
-
-
-    setText(
-        "lowStockCount",
-        lowStockProducts.length
-    );
-
-
-    /* ----------------------------------------
-       Sales overview
-       ---------------------------------------- */
-
-    setText(
-        "dashboardSales",
-        `₹${formatMoney(processedValue)}`
-    );
-
-
-    /* ----------------------------------------
-       Queue progress
-       ---------------------------------------- */
-
-    const totalOrders =
-        orders.length +
-        history.length;
-
-    const processedPercentage =
-        totalOrders > 0
-            ? Math.round(
-                (history.length /
-                    totalOrders) *
-                100
-            )
-            : 0;
-
-
-    const progress =
+    const productCount =
         document.getElementById(
-            "queueProgress"
+            "productCount"
         );
 
-    if (progress) {
-
-        progress.style.width =
-            `${processedPercentage}%`;
-    }
-
-
-    setText(
-        "queueProgressText",
-        `${processedPercentage}% processed`
-    );
-
-
-    /* ----------------------------------------
-       Stock alerts
-       ---------------------------------------- */
-
-    renderStockAlerts(
-        lowStockProducts
-    );
-}
-
-
-/* ==========================================
-   STOCK ALERTS
-   ========================================== */
-
-function renderStockAlerts(
-    lowStockProducts
-) {
-
-    const container =
+    const pendingCount =
         document.getElementById(
-            "stockAlerts"
+            "pendingCount"
         );
 
-    if (!container) {
-        return;
+    const processedCount =
+        document.getElementById(
+            "processedCount"
+        );
+
+    const totalValue =
+        document.getElementById(
+            "totalValue"
+        );
+
+    if (productCount) {
+
+        productCount.textContent =
+            products.length;
     }
 
+    if (pendingCount) {
 
-    if (!lowStockProducts.length) {
-
-        container.innerHTML = `
-
-            <div class="stock-safe">
-
-                <div class="stock-safe-icon">
-                    ✓
-                </div>
-
-                <strong>
-                    Inventory looks healthy
-                </strong>
-
-                <span>
-                    No products are low on stock.
-                </span>
-
-            </div>
-
-        `;
-
-        return;
+        pendingCount.textContent =
+            orders.length;
     }
 
+    if (processedCount) {
 
-    const sortedProducts =
-        [...lowStockProducts]
-            .sort(
-                (a, b) =>
-                    Number(a.stock || 0) -
-                    Number(b.stock || 0)
-            )
-            .slice(0, 6);
+        const processed =
+            history.filter(item => {
 
+                const action =
+                    String(
+                        item.actionType ||
+                        item.action ||
+                        item.status ||
+                        ""
+                    ).toLowerCase();
 
-    container.innerHTML =
-        sortedProducts.map(
-            product => {
+                return (
+                    action.includes("process") ||
+                    action.includes("complete")
+                );
+            }).length;
 
-                const stock =
-                    Number(
-                        product.stock || 0
+        processedCount.textContent =
+            processed;
+    }
+
+    if (totalValue) {
+
+        const total =
+            orders.reduce(
+                (sum, order) => {
+
+                    return (
+                        sum +
+                        getOrderAmount(order)
                     );
 
-                return `
+                },
+                0
+            );
 
-                    <div class="stock-alert">
-
-                        <div class="stock-alert-info">
-
-                            <strong>
-                                ${escapeHtml(
-                                    product.name
-                                )}
-                            </strong>
-
-                            <span>
-                                Product #${product.id}
-                            </span>
-
-                        </div>
-
-                        <div class="stock-alert-count">
-                            ${stock} left
-                        </div>
-
-                    </div>
-
-                `;
-            }
-        ).join("");
+        totalValue.textContent =
+            `₹${formatMoney(total)}`;
+    }
 }
 
 
-/* ==========================================
+/* =========================================================
    ORDER PREVIEW
-   ========================================== */
-
-document
-    .getElementById("orderProduct")
-    .addEventListener(
-        "change",
-        updateOrderPreview
-    );
-
-
-document
-    .getElementById("orderQuantity")
-    .addEventListener(
-        "input",
-        updateOrderPreview
-    );
-
+   ========================================================= */
 
 function updateOrderPreview() {
 
-    const productID =
-        Number(
-            document.getElementById(
-                "orderProduct"
-            ).value
+    const select =
+        document.getElementById(
+            "orderProduct"
         );
 
-    const quantity =
-        Number(
-            document.getElementById(
-                "orderQuantity"
-            ).value
-        ) || 1;
+    const quantityInput =
+        document.getElementById(
+            "orderQuantity"
+        );
 
+    const preview =
+        document.getElementById(
+            "orderPreview"
+        );
+
+    if (
+        !select ||
+        !quantityInput ||
+        !preview
+    ) {
+        return;
+    }
+
+    const productID =
+        Number(select.value);
+
+    const quantity =
+        Number(quantityInput.value);
 
     const product =
         products.find(
@@ -1315,13 +1408,6 @@ function updateOrderPreview() {
                 Number(p.id) ===
                 productID
         );
-
-
-    const preview =
-        document.getElementById(
-            "orderPreview"
-        );
-
 
     if (!product) {
 
@@ -1331,27 +1417,29 @@ function updateOrderPreview() {
         return;
     }
 
-
     const total =
         Number(product.price) *
         quantity;
 
-
     preview.innerHTML = `
-        ${escapeHtml(product.name)}
-        × ${quantity}
+        <strong>
+            ${escapeHtml(product.name)}
+        </strong>
 
-        <strong
-            style="
-                margin-left:auto;
-                color:#57d6b4;
-            "
-        >
-            ₹${formatMoney(total)}
+        <span>
+            ${quantity} × ₹${formatMoney(product.price)}
+        </span>
+
+        <strong>
+            Total: ₹${formatMoney(total)}
         </strong>
     `;
 }
 
+
+/* =========================================================
+   QUANTITY
+   ========================================================= */
 
 function changeQuantity(amount) {
 
@@ -1359,6 +1447,10 @@ function changeQuantity(amount) {
         document.getElementById(
             "orderQuantity"
         );
+
+    if (!input) {
+        return;
+    }
 
     let value =
         Number(input.value) || 1;
@@ -1375,57 +1467,41 @@ function changeQuantity(amount) {
 }
 
 
-/* ==========================================
+/* =========================================================
    NAVIGATION
-   ========================================== */
-
-document
-    .querySelectorAll(".nav-item")
-    .forEach(
-        button => {
-
-            button.addEventListener(
-                "click",
-                () => {
-
-                    const section =
-                        button.dataset.section;
-
-                    showSection(section);
-                }
-            );
-        }
-    );
-
+   ========================================================= */
 
 function showSection(section) {
 
-    document
-        .querySelectorAll(".nav-item")
-        .forEach(
-            item => {
-
-                item.classList.toggle(
-                    "active",
-                    item.dataset.section ===
-                        section
-                );
-            }
-        );
-
+    console.log(
+        "Showing section:",
+        section
+    );
 
     document
-        .querySelectorAll(".page-section")
-        .forEach(
-            page => {
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(item => {
 
-                page.classList.toggle(
-                    "active-section",
-                    page.id === section
-                );
-            }
-        );
+            item.classList.toggle(
+                "active",
+                item.dataset.section ===
+                section
+            );
+        });
 
+    document
+        .querySelectorAll(
+            ".page-section"
+        )
+        .forEach(page => {
+
+            page.classList.toggle(
+                "active-section",
+                page.id === section
+            );
+        });
 
     const titles = {
 
@@ -1445,36 +1521,173 @@ function showSection(section) {
             "Order History"
     };
 
+    const pageTitle =
+        document.getElementById(
+            "pageTitle"
+        );
 
-    setText(
-        "pageTitle",
-        titles[section] ||
-            "ShopFlow"
+    if (pageTitle) {
+
+        pageTitle.textContent =
+            titles[section] ||
+            "ShopFlow";
+    }
+}
+
+
+/* Make it available to inline HTML onclick="" */
+window.showSection =
+    showSection;
+
+
+/* =========================================================
+   NAVIGATION SETUP
+   ========================================================= */
+
+function setupNavigation() {
+
+    const navItems =
+        document.querySelectorAll(
+            ".nav-item"
+        );
+
+    navItems.forEach(item => {
+
+        item.addEventListener(
+            "click",
+            function() {
+
+                const section =
+                    this.dataset.section;
+
+                if (section) {
+
+                    showSection(
+                        section
+                    );
+                }
+            }
+        );
+    });
+
+    console.log(
+        `Navigation initialized: ${navItems.length} items`
     );
 }
 
 
-/* ==========================================
+/* =========================================================
    REFRESH EVERYTHING
-   ========================================== */
+   ========================================================= */
 
 async function refreshAll() {
 
-    await loadProducts();
+    console.log(
+        "Refreshing ShopFlow..."
+    );
 
-    await loadOrders();
+    try {
 
-    await loadHistory();
+        await loadProducts();
 
-    updateDashboard();
+        await loadOrders();
 
-    updateOrderPreview();
+        await loadHistory();
+
+        updateDashboard();
+
+        updateOrderPreview();
+
+        showToast(
+            "Refreshed",
+            "ShopFlow data has been updated."
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Refresh failed:",
+            error
+        );
+
+        showToast(
+            "Refresh Failed",
+            error.message ||
+            "Could not refresh the application.",
+            true
+        );
+    }
 }
 
 
-/* ==========================================
+/* =========================================================
+   ORDER FORM EVENT
+   ========================================================= */
+
+function setupOrderForm() {
+
+    const form =
+        document.getElementById(
+            "orderForm"
+        );
+
+    if (!form) {
+
+        console.warn(
+            "orderForm not found."
+        );
+
+        return;
+    }
+
+    form.addEventListener(
+        "submit",
+        placeOrder
+    );
+
+    console.log(
+        "Order form initialized."
+    );
+}
+
+
+/* =========================================================
+   PRODUCT SELECT EVENTS
+   ========================================================= */
+
+function setupProductEvents() {
+
+    const select =
+        document.getElementById(
+            "orderProduct"
+        );
+
+    const quantity =
+        document.getElementById(
+            "orderQuantity"
+        );
+
+    if (select) {
+
+        select.addEventListener(
+            "change",
+            updateOrderPreview
+        );
+    }
+
+    if (quantity) {
+
+        quantity.addEventListener(
+            "input",
+            updateOrderPreview
+        );
+    }
+}
+
+
+/* =========================================================
    TOAST
-   ========================================== */
+   ========================================================= */
 
 function showToast(
     title,
@@ -1492,34 +1705,54 @@ function showToast(
             "toastIcon"
         );
 
+    const toastTitle =
+        document.getElementById(
+            "toastTitle"
+        );
 
-    setText(
-        "toastTitle",
-        title
-    );
+    const toastMessage =
+        document.getElementById(
+            "toastMessage"
+        );
 
-    setText(
-        "toastMessage",
-        message
-    );
+    if (!toast) {
 
+        console.log(
+            title,
+            message
+        );
 
-    icon.textContent =
-        error
-            ? "!"
-            : "✓";
+        return;
+    }
 
+    if (toastTitle) {
 
-    icon.style.color =
-        error
-            ? "#ff7657"
-            : "#57d6b4";
+        toastTitle.textContent =
+            title;
+    }
 
+    if (toastMessage) {
+
+        toastMessage.textContent =
+            message;
+    }
+
+    if (icon) {
+
+        icon.textContent =
+            error
+                ? "!"
+                : "✓";
+
+        icon.style.color =
+            error
+                ? "#ff7657"
+                : "#57d6b4";
+    }
 
     toast.classList.add(
         "show"
     );
-
 
     setTimeout(
         () => {
@@ -1534,47 +1767,26 @@ function showToast(
 }
 
 
-/* ==========================================
-   HELPERS
-   ========================================== */
+/* =========================================================
+   FORMAT MONEY
+   ========================================================= */
 
-function getOrderAmount(order) {
+function formatMoney(value) {
 
     return Number(
-        order?.totalAmount ??
-        order?.amount ??
-        0
+        value || 0
+    ).toLocaleString(
+        "en-IN",
+        {
+            maximumFractionDigits: 2
+        }
     );
 }
 
 
-function setText(
-    elementID,
-    value
-) {
-
-    const element =
-        document.getElementById(
-            elementID
-        );
-
-    if (element) {
-        element.textContent = value;
-    }
-}
-
-
-function formatMoney(value) {
-
-    return Number(value || 0)
-        .toLocaleString(
-            "en-IN",
-            {
-                maximumFractionDigits: 2
-            }
-        );
-}
-
+/* =========================================================
+   ESCAPE HTML
+   ========================================================= */
 
 function escapeHtml(value) {
 
@@ -1600,255 +1812,55 @@ function escapeHtml(value) {
             "&#039;"
         );
 }
+
+
 /* =========================================================
-   SHOPFLOW — FINAL UI MICRO-INTERACTIONS
-   Visual only — does NOT modify API/order logic
+   GLOBAL FUNCTIONS
    ========================================================= */
 
-const dashboardAnimatedValues = {
-    productCount: 0,
-    pendingCount: 0,
-    processedCount: 0,
-    lowStockCount: 0,
-    totalValue: 0,
-    averageOrderValue: 0,
-    pendingOrderValue: 0,
-    inventoryUnits: 0
-};
+window.searchProduct =
+    searchProduct;
 
-function animateDashboardNumber(elementId, targetValue, formatter, duration = 700) {
-    const element = document.getElementById(elementId);
+window.changeQuantity =
+    changeQuantity;
 
-    if (!element) return;
+window.processNextOrder =
+    processNextOrder;
 
-    const target = Number(targetValue) || 0;
-    const start = Number(dashboardAnimatedValues[elementId]) || 0;
+window.editOrder =
+    editOrder;
 
-    if (start === target) {
-        element.textContent = formatter(target);
-        return;
-    }
+window.cancelOrder =
+    cancelOrder;
 
-    const startTime = performance.now();
+window.undoLastAction =
+    undoLastAction;
 
-    function animate(currentTime) {
-        const progress = Math.min(
-            (currentTime - startTime) / duration,
-            1
+window.refreshAll =
+    refreshAll;
+
+window.placeOrder =
+    placeOrder;
+
+
+/* =========================================================
+   START APPLICATION
+   ========================================================= */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    async function() {
+
+        console.log(
+            "DOM loaded."
         );
 
-        // Smooth ease-out
-        const eased = 1 - Math.pow(1 - progress, 3);
+        setupNavigation();
 
-        const currentValue =
-            start + (target - start) * eased;
+        setupOrderForm();
 
-        element.textContent = formatter(currentValue);
+        setupProductEvents();
 
-        if (progress < 1) {
-            requestAnimationFrame(animate);
-        } else {
-            element.textContent = formatter(target);
-            dashboardAnimatedValues[elementId] = target;
-        }
+        await initializeApp();
     }
-
-    requestAnimationFrame(animate);
-}
-
-function animateDashboardStats() {
-    animateDashboardNumber(
-        "productCount",
-        products.length,
-        value => Math.round(value).toLocaleString("en-IN")
-    );
-
-    animateDashboardNumber(
-        "pendingCount",
-        orders.length,
-        value => Math.round(value).toLocaleString("en-IN")
-    );
-
-    animateDashboardNumber(
-        "processedCount",
-        history.length,
-        value => Math.round(value).toLocaleString("en-IN")
-    );
-
-    const totalValue = history.reduce(
-        (sum, order) => sum + getOrderAmount(order),
-        0
-    );
-
-    const pendingValue = orders.reduce(
-        (sum, order) => sum + getOrderAmount(order),
-        0
-    );
-
-    const averageValue =
-        history.length > 0
-            ? totalValue / history.length
-            : 0;
-
-    const inventoryUnits = products.reduce(
-        (sum, product) => sum + Number(product.stock || 0),
-        0
-    );
-
-    const lowStockCount = products.filter(
-        product => Number(product.stock || 0) <= 5
-    ).length;
-
-    animateDashboardNumber(
-        "lowStockCount",
-        lowStockCount,
-        value => Math.round(value).toLocaleString("en-IN")
-    );
-
-    animateDashboardNumber(
-        "totalValue",
-        totalValue,
-        value => formatMoney(value)
-    );
-
-    animateDashboardNumber(
-        "pendingOrderValue",
-        pendingValue,
-        value => formatMoney(value)
-    );
-
-    animateDashboardNumber(
-        "averageOrderValue",
-        averageValue,
-        value => formatMoney(value)
-    );
-
-    animateDashboardNumber(
-        "inventoryUnits",
-        inventoryUnits,
-        value => Math.round(value).toLocaleString("en-IN")
-    );
-}
-
-
-/* ---------------------------------------------------------
-   Smooth queue progress animation
-   --------------------------------------------------------- */
-
-function animateQueueProgress() {
-    const progressBar = document.getElementById("queueProgress");
-
-    if (!progressBar) return;
-
-    const pending = orders.length;
-    const processed = history.length;
-    const total = pending + processed;
-
-    const percentage =
-        total > 0
-            ? Math.round((processed / total) * 100)
-            : 0;
-
-    requestAnimationFrame(() => {
-        progressBar.style.width = `${percentage}%`;
-    });
-}
-
-
-/* ---------------------------------------------------------
-   Dashboard refresh pulse
-   --------------------------------------------------------- */
-
-function pulseDashboard() {
-    const dashboard = document.getElementById("dashboard");
-
-    if (!dashboard) return;
-
-    dashboard.classList.remove("dashboard-refresh");
-
-    // Force browser to restart animation
-    void dashboard.offsetWidth;
-
-    dashboard.classList.add("dashboard-refresh");
-
-    setTimeout(() => {
-        dashboard.classList.remove("dashboard-refresh");
-    }, 500);
-}
-
-
-/* ---------------------------------------------------------
-   Button click feedback
-   --------------------------------------------------------- */
-
-document.addEventListener("click", event => {
-    const button = event.target.closest(
-        "button, .nav-item, .action-btn, .text-btn"
-    );
-
-    if (!button) return;
-
-    button.classList.remove("ui-click");
-
-    void button.offsetWidth;
-
-    button.classList.add("ui-click");
-
-    setTimeout(() => {
-        button.classList.remove("ui-click");
-    }, 220);
-});
-
-
-/* ---------------------------------------------------------
-   Card hover polish
-   --------------------------------------------------------- */
-
-document.addEventListener("mouseenter", event => {
-    const card = event.target.closest(
-        ".stat-card, .product-card, .panel, .queue-box, .stock-alert"
-    );
-
-    if (!card) return;
-
-    card.classList.add("ui-hover");
-}, true);
-
-document.addEventListener("mouseleave", event => {
-    const card = event.target.closest(
-        ".stat-card, .product-card, .panel, .queue-box, .stock-alert"
-    );
-
-    if (!card) return;
-
-    card.classList.remove("ui-hover");
-}, true);
-
-
-/* ---------------------------------------------------------
-   Run visual animations after data updates
-   --------------------------------------------------------- */
-
-function runFinalUIAnimations() {
-    animateDashboardStats();
-    animateQueueProgress();
-    pulseDashboard();
-}
-
-
-/* ---------------------------------------------------------
-   Small delay so the existing app finishes its first render
-   --------------------------------------------------------- */
-
-window.addEventListener("load", () => {
-    setTimeout(() => {
-        runFinalUIAnimations();
-    }, 350);
-});
-
-
-/* ==========================================
-   START
-   ========================================== */
-
-initializeApp();
+);
