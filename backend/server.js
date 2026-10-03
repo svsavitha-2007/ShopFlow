@@ -1,54 +1,67 @@
+/* =========================================================
+   SHOPFLOW SERVER
+   Express <-> C engine
+   Express <-> Gemini AI Assistant
+   ========================================================= */
+
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
+const registerAI = require("./ai");
+
+const PORT = process.env.PORT || 3000;
+const TIMEOUT_MS = 5000;
 
 const app = express();
-
-const PORT = 3000;
-
-/* =====================================================
-   MIDDLEWARE
-   ===================================================== */
 
 app.use(cors());
 app.use(express.json());
 
 
-/* =====================================================
+/* =========================================================
    FRONTEND
-   ===================================================== */
+   ========================================================= */
 
-/*
-   Project structure:
-
-   ShopFlow-dashboard-updated/
-   │
-   ├── index.html
-   ├── style.css
-   ├── script.js
-   │
-   └── backend/
-       ├── server.js
-       └── ecommerce.exe
-*/
-
-const frontendPath = path.join(__dirname, "..");
+const frontendPath = path.join(__dirname, "..", "frontend");
 
 app.use(express.static(frontendPath));
 
 
-/* =====================================================
-   START C PROGRAM IN API MODE
-   ===================================================== */
+/* =========================================================
+   C ENGINE
+   ========================================================= */
 
-const cExecutable = path.join(
-    __dirname,
-    "ecommerce.exe"
-);
+// Windows: ecommerce.exe
+// macOS/Linux: ecommerce
 
-const cProgram = spawn(
-    cExecutable,
+const exeName =
+    process.platform === "win32"
+        ? "ecommerce.exe"
+        : "ecommerce";
+
+const exePath = path.join(__dirname, exeName);
+
+
+if (!fs.existsSync(exePath)) {
+
+    console.error(
+        `\nC engine not found: ${exePath}`
+    );
+
+    console.error(
+        "Make sure ecommerce.exe exists inside the backend folder."
+    );
+
+    process.exit(1);
+}
+
+
+const engine = spawn(
+    exePath,
     ["api"],
     {
         cwd: __dirname
@@ -56,574 +69,660 @@ const cProgram = spawn(
 );
 
 
-/* =====================================================
-   RESPONSE MANAGEMENT
-   ===================================================== */
+let engineAlive = true;
+let buffer = "";
 
-let responseBuffer = "";
-let pendingRequests = [];
+const pending = [];
 
 
-/* =====================================================
-   RECEIVE OUTPUT FROM C
-   ===================================================== */
+/* =========================================================
+   C ENGINE COMMUNICATION
+   ========================================================= */
 
-cProgram.stdout.on("data", (data) => {
+function failAll(message) {
 
-    responseBuffer += data.toString();
+    while (pending.length) {
 
-    const lines = responseBuffer.split("\n");
+        const req = pending.shift();
 
-    responseBuffer = lines.pop();
+        clearTimeout(req.timer);
+
+        req.reject(
+            new Error(message)
+        );
+    }
+}
 
 
-    lines.forEach((line) => {
+engine.stdout.on("data", chunk => {
 
-        line = line.trim();
+    buffer += chunk.toString();
+
+    const lines = buffer.split("\n");
+
+    buffer = lines.pop();
+
+
+    for (const raw of lines) {
+
+        const line = raw.trim();
 
         if (!line) {
-            return;
+            continue;
         }
 
-        console.log("C RAW RESPONSE:", line);
-
-
-        /*
-           The C program may print decorative /
-           human-readable output before JSON.
-
-           Only JSON lines should resolve API requests.
-        */
 
         try {
 
-            const result = JSON.parse(line);
+            const result =
+                JSON.parse(line);
 
-            const request = pendingRequests.shift();
+            const req =
+                pending.shift();
 
-            if (request) {
-                request.resolve(result);
+
+            if (req) {
+
+                clearTimeout(req.timer);
+
+                req.resolve(result);
             }
 
-        } catch (error) {
-
-            /*
-               Ignore non-JSON C output.
-
-               Example:
-
-               ============================
-               PROCESSING ORDER
-               ============================
-
-               These lines are NOT API responses.
-            */
+        } catch {
 
             console.log(
                 "C INFO:",
                 line
             );
-
         }
-
-    });
-
+    }
 });
 
 
-/* =====================================================
-   C PROGRAM ERRORS
-   ===================================================== */
-
-cProgram.stderr.on("data", (data) => {
+engine.stderr.on("data", data => {
 
     console.error(
         "C ERROR:",
         data.toString()
     );
-
 });
 
 
-/* =====================================================
-   C PROGRAM CLOSED
-   ===================================================== */
+engine.on("error", error => {
 
-cProgram.on("close", (code) => {
-
-    console.log(
-        `C program exited with code ${code}`
-    );
-
-});
-
-
-/* =====================================================
-   C PROGRAM ERROR
-   ===================================================== */
-
-cProgram.on("error", (error) => {
+    engineAlive = false;
 
     console.error(
-        "FAILED TO START C PROGRAM:",
-        error
+        "Failed to start C engine:",
+        error.message
     );
 
+    failAll(
+        "C engine failed to start"
+    );
 });
 
 
-/* =====================================================
-   SEND COMMAND TO C
-   ===================================================== */
+engine.on("close", code => {
+
+    engineAlive = false;
+
+    console.log(
+        `C engine exited (${code})`
+    );
+
+    failAll(
+        "C engine stopped"
+    );
+});
+
 
 function sendCommand(command) {
 
     return new Promise((resolve, reject) => {
 
-        console.log(
-            "COMMAND TO C:",
-            command
-        );
+        if (!engineAlive) {
+
+            return reject(
+                new Error(
+                    "C engine is not running"
+                )
+            );
+        }
 
 
-        pendingRequests.push({
+        const req = {
             resolve,
             reject
-        });
+        };
 
 
-        cProgram.stdin.write(
-            command + "\n"
-        );
+        req.timer = setTimeout(() => {
 
-    });
-
-}
+            const index =
+                pending.indexOf(req);
 
 
-/* =====================================================
-   HOME / FRONTEND
-   ===================================================== */
+            if (index !== -1) {
 
-app.get("/", (req, res) => {
-
-    res.sendFile(
-        path.join(
-            frontendPath,
-            "index.html"
-        )
-    );
-
-});
-
-
-/* =====================================================
-   GET ALL PRODUCTS
-   ===================================================== */
-
-app.get(
-    "/api/products",
-    async (req, res) => {
-
-        try {
-
-            const result =
-                await sendCommand(
-                    "VIEW_PRODUCTS"
+                pending.splice(
+                    index,
+                    1
                 );
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "PRODUCT ERROR:",
-                error
-            );
-
-            res.status(500).json({
-                success: false,
-                message:
-                    "Failed to fetch products"
-            });
-
-        }
-
-    }
-);
-
-
-/* =====================================================
-   SEARCH PRODUCT
-   ===================================================== */
-
-app.get(
-    "/api/products/:id",
-    async (req, res) => {
-
-        try {
-
-            const productID =
-                Number(req.params.id);
-
-
-            const result =
-                await sendCommand(
-                    `SEARCH|${productID}`
-                );
-
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "SEARCH ERROR:",
-                error
-            );
-
-            res.status(500).json({
-                success: false,
-                message:
-                    "Product search failed"
-            });
-
-        }
-
-    }
-);
-
-
-/* =====================================================
-   PLACE ORDER
-   ===================================================== */
-
-app.post(
-    "/api/orders",
-    async (req, res) => {
-
-        try {
-
-            console.log(
-                "ORDER REQUEST:",
-                req.body
-            );
-
-
-            const productID =
-                Number(
-                    req.body.productID
-                );
-
-            const quantity =
-                Number(
-                    req.body.quantity
-                );
-
-
-            if (
-                !Number.isInteger(productID) ||
-                !Number.isInteger(quantity)
-            ) {
-
-                return res.status(400).json({
-                    success: false,
-                    message:
-                        "productID and quantity must be numbers"
-                });
-
             }
 
 
-            const result =
-                await sendCommand(
-                    `PLACE_ORDER|${productID}|${quantity}`
-                );
-
-
-            console.log(
-                "ORDER RESPONSE:",
-                result
+            reject(
+                new Error(
+                    "C engine did not respond in time"
+                )
             );
 
+        }, TIMEOUT_MS);
 
-            res.json(result);
+
+        pending.push(req);
+
+
+        try {
+
+            engine.stdin.write(
+                command + "\n"
+            );
 
         } catch (error) {
 
-            console.error(
-                "ORDER ERROR:",
-                error
+            const index =
+                pending.indexOf(req);
+
+
+            if (index !== -1) {
+
+                pending.splice(
+                    index,
+                    1
+                );
+            }
+
+
+            clearTimeout(
+                req.timer
             );
 
 
-            res.status(500).json({
-                success: false,
-                message:
-                    "Failed to place order",
-                error:
-                    error.message
-            });
-
+            reject(error);
         }
+    });
+}
+
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+const PRIORITIES = [
+    1,
+    2,
+    3
+];
+
+
+const positiveInt = value =>
+    Number.isInteger(
+        Number(value)
+    ) &&
+    Number(value) > 0;
+
+
+const route = fn => async (req, res) => {
+
+    try {
+
+        const result =
+            await fn(req, res);
+
+        res.json(result);
+
+    } catch (error) {
+
+        console.error(
+            `${req.method} ${req.originalUrl} failed:`,
+            error.message
+        );
+
+
+        res.status(503).json({
+
+            success: false,
+
+            message:
+                error.message
+
+        });
+    }
+};
+
+
+/* =========================================================
+   HEALTH
+   ========================================================= */
+
+app.get(
+    "/api/health",
+    (req, res) => {
+
+        res.json({
+
+            success: true,
+
+            engine:
+                engineAlive,
+
+            ai:
+                Boolean(
+                    process.env.GEMINI_API_KEY
+                )
+
+        });
 
     }
 );
 
 
-/* =====================================================
-   VIEW ORDER QUEUE
-   ===================================================== */
+/* =========================================================
+   AI ASSISTANT
+   ========================================================= */
+
+/*
+   IMPORTANT:
+
+   The AI code is kept in ai.js.
+
+   server.js only connects ai.js to the C engine
+   by giving it the sendCommand function.
+*/
+
+registerAI(
+    app,
+    sendCommand
+);
+
+
+/* =========================================================
+   PRODUCTS
+   ========================================================= */
+
+app.get(
+    "/api/products",
+    route(() =>
+        sendCommand(
+            "VIEW_PRODUCTS"
+        )
+    )
+);
+
+
+app.get(
+    "/api/skiplist",
+    route(() =>
+        sendCommand(
+            "SKIPLIST"
+        )
+    )
+);
+
+
+app.get(
+    "/api/products/:id",
+    route(req => {
+
+        if (
+            !positiveInt(
+                req.params.id
+            )
+        ) {
+
+            return {
+
+                success: false,
+
+                message:
+                    "Invalid product ID"
+
+            };
+        }
+
+
+        return sendCommand(
+            `SEARCH|${Number(req.params.id)}`
+        );
+
+    })
+);
+
+
+/* =========================================================
+   ORDERS
+   ========================================================= */
+
+app.post(
+    "/api/orders",
+    route(req => {
+
+        const {
+            productID,
+            quantity
+        } = req.body || {};
+
+
+        const priority =
+            req.body &&
+            req.body.priority !== undefined
+
+                ? req.body.priority
+
+                : 2;
+
+
+        if (
+            !positiveInt(productID) ||
+            !positiveInt(quantity)
+        ) {
+
+            return {
+
+                success: false,
+
+                message:
+                    "productID and quantity must be positive whole numbers"
+
+            };
+        }
+
+
+        if (
+            !PRIORITIES.includes(
+                Number(priority)
+            )
+        ) {
+
+            return {
+
+                success: false,
+
+                message:
+                    "priority must be 1 (Express), 2 (Standard) or 3 (Economy)"
+
+            };
+        }
+
+
+        return sendCommand(
+            `PLACE_ORDER|${Number(productID)}|${Number(quantity)}|${Number(priority)}`
+        );
+
+    })
+);
+
 
 app.get(
     "/api/orders",
-    async (req, res) => {
-
-        try {
-
-            const result =
-                await sendCommand(
-                    "VIEW_QUEUE"
-                );
-
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "QUEUE ERROR:",
-                error
-            );
-
-            res.status(500).json({
-                success: false,
-                message:
-                    "Failed to fetch orders"
-            });
-
-        }
-
-    }
+    route(() =>
+        sendCommand(
+            "VIEW_QUEUE"
+        )
+    )
 );
 
 
-/* =====================================================
-   PROCESS NEXT ORDER
-   ===================================================== */
+app.put(
+    "/api/orders/:id/priority",
+    route(req => {
+
+        const priority =
+            req.body &&
+            req.body.priority;
+
+
+        if (
+            !positiveInt(
+                req.params.id
+            ) ||
+
+            !PRIORITIES.includes(
+                Number(priority)
+            )
+        ) {
+
+            return {
+
+                success: false,
+
+                message:
+                    "Order ID and a priority of 1, 2 or 3 are required"
+
+            };
+        }
+
+
+        return sendCommand(
+            `SET_PRIORITY|${Number(req.params.id)}|${Number(priority)}`
+        );
+
+    })
+);
+
 
 app.post(
     "/api/orders/process",
-    async (req, res) => {
-
-        try {
-
-            const result =
-                await sendCommand(
-                    "PROCESS_ORDER"
-                );
-
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "PROCESS ERROR:",
-                error
-            );
-
-            res.status(500).json({
-                success: false,
-                message:
-                    "Failed to process order"
-            });
-
-        }
-
-    }
+    route(() =>
+        sendCommand(
+            "PROCESS_ORDER"
+        )
+    )
 );
 
-
-/* =====================================================
-   EDIT ORDER
-   ===================================================== */
 
 app.put(
     "/api/orders/:id",
-    async (req, res) => {
+    route(req => {
 
-        try {
-
-            const orderID =
-                Number(req.params.id);
-
-            const quantity =
-                Number(req.body.quantity);
+        const quantity =
+            req.body &&
+            req.body.quantity;
 
 
-            const result =
-                await sendCommand(
-                    `EDIT_ORDER|${orderID}|${quantity}`
-                );
+        if (
+            !positiveInt(
+                req.params.id
+            ) ||
 
+            !positiveInt(
+                quantity
+            )
+        ) {
 
-            res.json(result);
+            return {
 
-        } catch (error) {
-
-            console.error(
-                "EDIT ERROR:",
-                error
-            );
-
-            res.status(500).json({
                 success: false,
-                message:
-                    "Failed to edit order"
-            });
 
+                message:
+                    "Order ID and quantity must be positive whole numbers"
+
+            };
         }
 
-    }
+
+        return sendCommand(
+            `EDIT_ORDER|${Number(req.params.id)}|${Number(quantity)}`
+        );
+
+    })
 );
 
-
-/* =====================================================
-   CANCEL ORDER
-   ===================================================== */
 
 app.delete(
     "/api/orders/:id",
-    async (req, res) => {
+    route(req => {
 
-        try {
+        if (
+            !positiveInt(
+                req.params.id
+            )
+        ) {
 
-            const orderID =
-                Number(req.params.id);
+            return {
 
-
-            const result =
-                await sendCommand(
-                    `CANCEL_ORDER|${orderID}`
-                );
-
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "CANCEL ERROR:",
-                error
-            );
-
-            res.status(500).json({
                 success: false,
-                message:
-                    "Failed to cancel order"
-            });
 
+                message:
+                    "Invalid order ID"
+
+            };
         }
 
-    }
+
+        return sendCommand(
+            `CANCEL_ORDER|${Number(req.params.id)}`
+        );
+
+    })
 );
 
 
-/* =====================================================
-   UNDO LAST ACTION
-   ===================================================== */
+/* =========================================================
+   UNDO
+   ========================================================= */
 
 app.post(
     "/api/undo",
-    async (req, res) => {
-
-        try {
-
-            const result =
-                await sendCommand(
-                    "UNDO"
-                );
-
-
-            res.json(result);
-
-        } catch (error) {
-
-            console.error(
-                "UNDO ERROR:",
-                error
-            );
-
-            res.status(500).json({
-                success: false,
-                message:
-                    "Undo failed"
-            });
-
-        }
-
-    }
+    route(() =>
+        sendCommand(
+            "UNDO"
+        )
+    )
 );
 
 
-/* =====================================================
-   ORDER HISTORY
-   ===================================================== */
+/* =========================================================
+   HISTORY
+   ========================================================= */
 
 app.get(
     "/api/history",
-    async (req, res) => {
-
-        try {
-
-            const result =
-                await sendCommand(
-                    "VIEW_HISTORY"
-                );
+    route(() =>
+        sendCommand(
+            "VIEW_HISTORY"
+        )
+    )
+);
 
 
-            res.json(result);
+/* =========================================================
+   UNKNOWN API ROUTE
+   ========================================================= */
 
-        } catch (error) {
+app.use(
+    "/api",
+    (req, res) => {
 
-            console.error(
-                "HISTORY ERROR:",
-                error
-            );
+        res.status(404).json({
 
-            res.status(500).json({
-                success: false,
-                message:
-                    "Failed to fetch order history"
-            });
+            success: false,
 
-        }
+            message:
+                "Unknown API route"
+
+        });
 
     }
 );
 
 
-/* =====================================================
+/* =========================================================
    START SERVER
-   ===================================================== */
+   ========================================================= */
 
 app.listen(
     PORT,
     () => {
 
         console.log(
-            `Server running at http://localhost:${PORT}`
+            `ShopFlow running at http://localhost:${PORT}`
         );
 
-        console.log(
-            "Frontend:",
-            frontendPath
-        );
 
         console.log(
-            "C DSA engine started in API mode."
+            `Frontend folder: ${frontendPath}`
+        );
+
+
+        console.log(
+            "AI Assistant routes:"
+        );
+
+
+        console.log(
+            "  GET  /api/ai/status"
+        );
+
+
+        console.log(
+            "  POST /api/ai/chat"
+        );
+
+
+        console.log(
+            "  POST /api/chat"
+        );
+
+
+        console.log(
+            `Gemini configured: ${Boolean(
+                process.env.GEMINI_API_KEY
+            )}`
         );
 
     }
+);
+
+
+/* =========================================================
+   SHUTDOWN
+   ========================================================= */
+
+function shutdown() {
+
+    if (engineAlive) {
+
+        try {
+
+            engine.stdin.write(
+                "EXIT\n"
+            );
+
+        } catch {
+
+            // Ignore shutdown errors.
+
+        }
+    }
+
+
+    setTimeout(
+        () => process.exit(0),
+        200
+    );
+}
+
+
+process.on(
+    "SIGINT",
+    shutdown
+);
+
+
+process.on(
+    "SIGTERM",
+    shutdown
 );

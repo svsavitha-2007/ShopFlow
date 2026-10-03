@@ -1,166 +1,51 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "stack.h"
 
-
-/* ==========================================
-   INITIALIZE STACK
-   ========================================== */
-
-void initializeStack(
-    struct Stack *stack)
+void initializeStack(struct Stack *stack)
 {
     stack->top = NULL;
 }
 
-
-/* ==========================================
-   CHECK WHETHER STACK IS EMPTY
-   ========================================== */
-
-int isStackEmpty(
-    struct Stack *stack)
+int isStackEmpty(const struct Stack *stack)
 {
-    if (stack->top == NULL)
-    {
-        return 1;
-    }
-
-    return 0;
+    return stack->top == NULL;
 }
 
-
-/* ==========================================
-   PUSH
-   ========================================== */
-
-void push(
-    struct Stack *stack,
-    struct OrderAction action)
+int push(struct Stack *stack, struct OrderAction action)
 {
-    struct StackNode *newNode;
+    struct StackNode *node = (struct StackNode *)malloc(sizeof(struct StackNode));
 
-
-    newNode =
-        (struct StackNode*)
-        malloc(sizeof(struct StackNode));
-
-
-    if (newNode == NULL)
+    if (node == NULL)
     {
-        /*
-           Do not print here.
-
-           API mode requires stdout to contain
-           JSON responses only.
-        */
-
-        return;
+        return 0;
     }
 
+    node->action = action;
+    node->next = stack->top;
+    stack->top = node;
 
-    newNode->action = action;
-
-    newNode->next = stack->top;
-
-    stack->top = newNode;
+    return 1;
 }
 
-
-/* ==========================================
-   POP
-   ========================================== */
-
-void pop(
-    struct Stack *stack)
+void pop(struct Stack *stack)
 {
     struct StackNode *temp;
 
-
-    if (isStackEmpty(stack))
+    if (stack->top == NULL)
     {
-        /*
-           Do not print here.
-
-           API mode requires stdout to contain
-           JSON responses only.
-        */
-
         return;
     }
 
-
     temp = stack->top;
-
-
-    stack->top =
-        stack->top->next;
-
-
+    stack->top = temp->next;
     free(temp);
 }
 
-
-/* ==========================================
-   DISPLAY STACK
-   ========================================== */
-
-void displayStack(
-    struct Stack *stack)
+void freeStack(struct Stack *stack)
 {
-    struct StackNode *current;
-
-
-    if (isStackEmpty(stack))
+    while (!isStackEmpty(stack))
     {
-        printf(
-            "\nUndo history is empty.\n"
-        );
-
-        return;
+        pop(stack);
     }
-
-
-    current = stack->top;
-
-
-    printf("\n");
-
-    printf(
-        "====================================\n"
-    );
-
-    printf(
-        "            UNDO HISTORY\n"
-    );
-
-    printf(
-        "====================================\n"
-    );
-
-
-    printf("\nTOP\n");
-
-
-    while (current != NULL)
-    {
-        printf(
-            "Order %d | %s | Quantity %d -> %d | Stock %d -> %d\n",
-            current->action.orderID,
-            current->action.actionType,
-            current->action.oldQuantity,
-            current->action.newQuantity,
-            current->action.oldStock,
-            current->action.newStock
-        );
-
-
-        current =
-            current->next;
-    }
-
-
-    printf("\nBOTTOM\n");
 }

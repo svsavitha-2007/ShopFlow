@@ -1,1220 +1,411 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
     <title>ShopFlow | Order Management</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
-    <link
-        href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
-        rel="stylesheet"
-    >
-
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 
-
 <body>
-
 <div class="app-shell">
 
-
-    <!-- =====================================================
-         SIDEBAR
-         ===================================================== -->
-
+    <!-- SIDEBAR -->
     <aside class="sidebar">
-
         <div class="brand">
-
-            <div class="brand-icon">
-                SF
-            </div>
-
+            <div class="brand-icon" aria-hidden="true">SF</div>
             <div class="brand-copy">
                 <h1>ShopFlow</h1>
                 <span>DSA Order Engine</span>
             </div>
-
         </div>
 
+        <div class="sidebar-section-label">Workspace</div>
 
-        <div class="sidebar-section-label">
-            WORKSPACE
-        </div>
-
-
-        <nav class="navigation">
-
-            <button
-                class="nav-item active"
-                data-section="dashboard"
-            >
-                <span class="nav-icon">⌂</span>
-
-                <span>
-                    Dashboard
-                </span>
+        <nav class="navigation" aria-label="Main">
+            <button class="nav-item active" data-section="dashboard" type="button" aria-current="page">
+                <span class="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span>
             </button>
-
-
-            <button
-                class="nav-item"
-                data-section="products"
-            >
-                <span class="nav-icon">▦</span>
-
-                <span>
-                    Products
-                </span>
+            <button class="nav-item" data-section="products" type="button">
+                <span class="nav-icon" aria-hidden="true">▦</span><span>Products</span>
             </button>
-
-
-            <button
-                class="nav-item"
-                data-section="orders"
-            >
-                <span class="nav-icon">◫</span>
-
-                <span>
-                    Orders
-                </span>
-
-                <span
-                    id="sidebarOrderCount"
-                    class="nav-count"
-                >
-                    0
-                </span>
+            <button class="nav-item" data-section="orders" type="button">
+                <span class="nav-icon" aria-hidden="true">◫</span><span>Orders</span>
+                <span id="sidebarOrderCount" class="nav-count">0</span>
             </button>
-
-
-            <button
-                class="nav-item"
-                data-section="dsa"
-            >
-                <span class="nav-icon">◇</span>
-
-                <span>
-                    DSA Engine
-                </span>
+            <button class="nav-item" data-section="dsa" type="button">
+                <span class="nav-icon" aria-hidden="true">◇</span><span>DSA Engine</span>
             </button>
-
-
-            <button
-                class="nav-item"
-                data-section="history"
-            >
-                <span class="nav-icon">↺</span>
-
-                <span>
-                    History
-                </span>
+            <button class="nav-item" data-section="history" type="button">
+                <span class="nav-icon" aria-hidden="true">↺</span><span>History</span>
             </button>
-
         </nav>
 
-
         <div class="sidebar-bottom">
-
             <div class="engine-status">
-
                 <span class="status-dot"></span>
-
-                <div>
-                    <strong>Engine Online</strong>
-                    <small>C + Node.js API</small>
-                </div>
-
+                <div><strong>Engine online</strong><small>C + Node.js API</small></div>
             </div>
-
         </div>
-
     </aside>
 
-
-
-    <!-- =====================================================
-         MAIN CONTENT
-         ===================================================== -->
-
+    <!-- MAIN -->
     <main class="main-content">
 
-
-        <!-- TOPBAR -->
-
         <header class="topbar">
-
             <div class="topbar-left">
-
-                <p class="eyebrow">
-                    ORDER MANAGEMENT SYSTEM
-                </p>
-
-                <h2 id="pageTitle">
-                    Good day 👋
-                </h2>
-
+                <p class="eyebrow">Order management system</p>
+                <h2 id="pageTitle">Good day 👋</h2>
             </div>
 
-
-            <div class="topbar-actions">
-
-                <div class="api-indicator">
-
-                    <span class="status-dot"></span>
-
-                    <span>
-                        API Connected
-                    </span>
-
+            <div class="topbar-right">
+                <div class="api-status" id="apiStatus">
+                    <span class="status-dot"></span><span id="apiStatusText">API connected</span>
                 </div>
-
-
-                <div class="avatar">
-                    SF
-                </div>
-
+                <button id="refreshBtn" class="theme-btn" type="button" onclick="manualRefresh()" aria-label="Refresh data"><span id="refreshIcon" aria-hidden="true">↻</span><span>Refresh</span></button>
+                <button id="themeToggle" class="theme-btn" type="button" aria-label="Switch colour theme">
+                    <span id="themeIcon" aria-hidden="true">🌙</span><span id="themeText">Dark</span>
+                </button>
+                <div class="profile-avatar" aria-hidden="true">SF</div>
             </div>
-
         </header>
 
 
-
-        <!-- =====================================================
-             DASHBOARD
-             ===================================================== -->
-
-        <section
-            id="dashboard"
-            class="page-section active-section"
-        >
+        <!-- DASHBOARD -->
+        <section id="dashboard" class="page-section active-section">
 
             <div class="welcome-banner">
-
                 <div class="banner-content">
-
-                    <span class="banner-label">
-                        SMART ORDER MANAGEMENT
-                    </span>
-
-                    <h3>
-                        Everything flowing,
-                        <span>exactly in order.</span>
-                    </h3>
-
-                    <p>
-                        Manage products, process orders and
-                        reverse actions using your DSA-powered
-                        order engine.
-                    </p>
-
-
+                    <span class="banner-label">Smart order management</span>
+                    <h3>Everything flowing, <span>exactly in order.</span></h3>
+                    <p>Browse products, build a cart, check out, and process orders with the DSA-powered order engine.</p>
                     <div class="banner-actions">
-
-                        <button
-                            class="banner-button"
-                            onclick="showSection('orders')"
-                        >
-                            Open Order Queue
-                            <span>→</span>
-                        </button>
-
-                        <button
-                            class="banner-link"
-                            onclick="showSection('dsa')"
-                        >
-                            Explore DSA Engine
-                        </button>
-
+                        <button class="banner-button" type="button" onclick="showSection('products')">Shop products <span>→</span></button>
+                        <button class="banner-link" type="button" onclick="showSection('orders')">Open order queue</button>
                     </div>
-
                 </div>
-
-
-                <div class="banner-visual">
-
-                    <div class="visual-orbit orbit-one"></div>
-                    <div class="visual-orbit orbit-two"></div>
-
-                    <div class="floating-node node-one">
-                        BST
-                    </div>
-
-                    <div class="floating-node node-two">
-                        FIFO
-                    </div>
-
-                    <div class="floating-node node-three">
-                        LIFO
-                    </div>
-
-                    <div class="visual-core">
-                        SF
-                    </div>
-
-                </div>
-
             </div>
-
-
-
-            <!-- STAT CARDS -->
 
             <div class="stats-grid">
-
-                <div class="stat-card">
-
-                    <div class="stat-icon purple">
-                        ▦
-                    </div>
-
-                    <div>
-                        <span>Total Products</span>
-                        <strong id="productCount">—</strong>
-                    </div>
-
-                    <div class="stat-arrow">
-                        →
-                    </div>
-
+                <div class="stat-card" data-goto="products" role="button" tabindex="0">
+                    <div class="stat-icon purple" aria-hidden="true">▦</div>
+                    <div><span>Total products</span><strong id="productCount">—</strong></div>
                 </div>
-
-
-                <div class="stat-card">
-
-                    <div class="stat-icon orange">
-                        ◫
-                    </div>
-
-                    <div>
-                        <span>Pending Orders</span>
-                        <strong id="pendingCount">—</strong>
-                    </div>
-
-                    <div class="stat-arrow">
-                        →
-                    </div>
-
+                <div class="stat-card" data-goto="orders" role="button" tabindex="0">
+                    <div class="stat-icon orange" aria-hidden="true">◫</div>
+                    <div><span>Pending orders</span><strong id="pendingCount">—</strong></div>
                 </div>
-
-
-                <div class="stat-card">
-
-                    <div class="stat-icon green">
-                        ✓
-                    </div>
-
-                    <div>
-                        <span>Processed</span>
-                        <strong id="processedCount">—</strong>
-                    </div>
-
-                    <div class="stat-arrow">
-                        →
-                    </div>
-
+                <div class="stat-card" data-goto="history" role="button" tabindex="0">
+                    <div class="stat-icon green" aria-hidden="true">✓</div>
+                    <div><span>Processed</span><strong id="processedCount">—</strong></div>
                 </div>
-
-
-                <div class="stat-card">
-
-                    <div class="stat-icon blue">
-                        ₹
-                    </div>
-
-                    <div>
-                        <span>Processed Value</span>
-                        <strong id="totalValue">₹0</strong>
-                    </div>
-
-                    <div class="stat-arrow">
-                        →
-                    </div>
-
+                <div class="stat-card" data-goto="products" role="button" tabindex="0">
+                    <div class="stat-icon blue" aria-hidden="true">₹</div>
+                    <div><span>Cart value</span><strong id="totalValue">₹0</strong></div>
                 </div>
-
             </div>
 
-
-
-            <!-- DASHBOARD GRID -->
+            <div class="panel quick-add">
+                <div class="panel-header">
+                    <div><span class="section-kicker">Quick add</span><h3>Popular products</h3></div>
+                    <button class="text-button" type="button" onclick="showSection('products')">Browse all →</button>
+                </div>
+                <div id="quickAdd" class="quick-add-row"><div class="loading">Loading products…</div></div>
+            </div>
 
             <div class="dashboard-grid">
-
-
-                <!-- LIVE ORDERS -->
-
                 <div class="panel recent-panel">
-
                     <div class="panel-header">
-
                         <div>
-                            <span class="section-kicker">
-                                LIVE QUEUE
-                            </span>
-
-                            <h3>
-                                Orders waiting
-                            </h3>
+                            <span class="section-kicker">Live queue</span>
+                            <h3>Orders waiting</h3>
                         </div>
-
-
-                        <button
-                            class="text-button"
-                            onclick="showSection('orders')"
-                        >
-                            View all →
-                        </button>
-
-                    </div>
-
-
-                    <div
-                        id="dashboardOrders"
-                        class="dashboard-orders"
-                    >
-
-                        <div class="loading">
-                            Loading orders...
+                        <div class="panel-actions">
+                            <button class="small-button" type="button" onclick="processNextOrder()">Process next</button>
+                            <button class="text-button" type="button" onclick="showSection('orders')">View all →</button>
                         </div>
-
                     </div>
-
+                    <div id="dashboardOrders" class="dashboard-orders">
+                        <div class="loading">Loading orders…</div>
+                    </div>
                 </div>
-
-
-
-                <!-- QUICK ORDER -->
 
                 <div class="panel quick-panel">
-
                     <div class="panel-header">
-
                         <div>
-                            <span class="section-kicker">
-                                QUICK ACTION
-                            </span>
-
-                            <h3>
-                                Create an order
-                            </h3>
+                            <span class="section-kicker">Shopping cart</span>
+                            <h3>Your cart</h3>
                         </div>
-
+                        <span id="cartCountBadge" class="cart-count-badge">0 items</span>
                     </div>
-
-
-                    <form id="orderForm">
-
-                        <label>
-                            Product
-                        </label>
-
-                        <select
-                            id="orderProduct"
-                            required
-                        >
-                            <option value="">
-                                Select product
-                            </option>
-                        </select>
-
-
-                        <label>
-                            Quantity
-                        </label>
-
-                        <div class="quantity-control">
-
-                            <button
-                                type="button"
-                                onclick="changeQuantity(-1)"
-                            >
-                                −
-                            </button>
-
-                            <input
-                                id="orderQuantity"
-                                type="number"
-                                value="1"
-                                min="1"
-                                required
-                            >
-
-                            <button
-                                type="button"
-                                onclick="changeQuantity(1)"
-                            >
-                                +
-                            </button>
-
-                        </div>
-
-
-                        <div
-                            class="order-preview"
-                            id="orderPreview"
-                        >
-                            Select a product
-                        </div>
-
-
-                        <button
-                            type="submit"
-                            class="primary-button"
-                        >
-                            Place Order
-
-                            <span>
-                                →
-                            </span>
-                        </button>
-
-                    </form>
-
+                    <div id="cartPreview" class="cart-preview">
+                        <div class="empty-cart">Your cart is empty.<br>Add products to get started.</div>
+                    </div>
+                    <div class="cart-total-row"><span>Cart total</span><strong id="cartPreviewTotal">₹0</strong></div>
+                    <button id="previewCheckout" class="primary-button" type="button" onclick="checkoutCart()" disabled>Checkout →</button>
+                    <button class="text-button preview-continue" type="button" onclick="showSection('products')">Continue shopping</button>
                 </div>
-
             </div>
 
-
-            <!-- DASHBOARD LOWER CARDS -->
+            <div class="panel activity-panel">
+                <div class="panel-header">
+                    <div><span class="section-kicker">Your activity</span><h3>Recent activity</h3></div>
+                    <button class="text-button" type="button" onclick="showSection('history')">View history →</button>
+                </div>
+                <div id="activityFeed" class="activity-feed"></div>
+            </div>
 
             <div class="dashboard-lower">
-
                 <div class="insight-card">
-
-                    <div class="insight-icon purple">
-                        BST
-                    </div>
-
-                    <div>
-                        <span>Product Search</span>
-                        <strong>Binary Search Tree</strong>
-                        <p>
-                            Fast product lookup using ordered IDs.
-                        </p>
-                    </div>
-
+                    <div class="insight-icon purple">SKIP</div>
+                    <div><span>Product search</span><strong>Skip list</strong><p>Express lanes let a lookup jump past most products.</p></div>
                 </div>
-
-
                 <div class="insight-card">
-
-                    <div class="insight-icon orange">
-                        FIFO
-                    </div>
-
-                    <div>
-                        <span>Order Processing</span>
-                        <strong>First In, First Out</strong>
-                        <p>
-                            Orders leave the queue in arrival order.
-                        </p>
-                    </div>
-
+                    <div class="insight-icon orange">HEAP</div>
+                    <div><span>Order processing</span><strong>Priority queue</strong><p>Express orders go first; ties keep arrival order.</p></div>
                 </div>
-
-
                 <div class="insight-card">
-
-                    <div class="insight-icon green">
-                        LIFO
-                    </div>
-
-                    <div>
-                        <span>Action Recovery</span>
-                        <strong>Last In, First Out</strong>
-                        <p>
-                            Recent changes can be reversed.
-                        </p>
-                    </div>
-
+                    <div class="insight-icon green">LIFO</div>
+                    <div><span>Action recovery</span><strong>Last in, first out</strong><p>Recent changes can be reversed.</p></div>
                 </div>
-
             </div>
-
         </section>
 
 
-
-        <!-- =====================================================
-             PRODUCTS
-             ===================================================== -->
-
-        <section
-            id="products"
-            class="page-section"
-        >
+        <!-- PRODUCTS -->
+        <section id="products" class="page-section">
 
             <div class="section-heading">
-
                 <div>
-
-                    <span class="section-kicker">
-                        CATALOG
-                    </span>
-
-                    <h2>
-                        Product Explorer
-                    </h2>
-
-                    <p>
-                        Search products using the Binary Search Tree.
-                    </p>
-
+                    <span class="section-kicker">Catalog</span>
+                    <h2>Product explorer</h2>
+                    <p>Browse products and add items to your cart. Search by ID to see the skip list lookup in action.</p>
                 </div>
 
-
-                <div class="search-box">
-
-                    <span>
-                        ⌕
-                    </span>
-
-                    <input
-                        id="productSearch"
-                        type="number"
-                        placeholder="Search Product ID..."
-                    >
-
-                    <button
-                        onclick="searchProduct()"
-                    >
-                        Search
-                    </button>
-
+                <div class="search-box" role="search">
+                    <span aria-hidden="true">⌕</span>
+                    <input id="productSearch" type="number" min="1" inputmode="numeric" placeholder="Search by product ID" aria-label="Search by product ID">
+                    <button type="button" onclick="searchProduct()">Search</button>
                 </div>
-
             </div>
 
+            <div id="searchResult" class="search-result" aria-live="polite"></div>
 
-            <div
-                id="searchResult"
-                class="search-result"
-            ></div>
-
-
-            <div
-                id="productGrid"
-                class="product-grid"
-            >
-
-                <div class="loading">
-                    Loading products...
+            <div class="shop-layout">
+                <div id="productGrid" class="product-grid">
+                    <div class="loading">Loading products…</div>
                 </div>
 
-            </div>
+                <aside class="cart-panel" aria-label="Shopping cart">
+                    <div class="cart-panel-header">
+                        <div>
+                            <span class="section-kicker">Your cart</span>
+                            <h3>Shopping bag</h3>
+                        </div>
+                        <span id="cartCount" class="cart-count-badge">0</span>
+                    </div>
 
+                    <div id="cartItems" class="cart-items">
+                        <div class="empty-cart">Your cart is empty.</div>
+                    </div>
+
+                    <div class="cart-summary">
+                        <div><span>Items</span><strong id="cartItemCount">0</strong></div>
+                        <div><span>Subtotal</span><strong id="cartSubtotal">₹0</strong></div>
+                        <div class="cart-grand-total"><span>Total</span><strong id="cartTotal">₹0</strong></div>
+                    </div>
+
+                    <button id="checkoutButton" class="primary-button checkout-button" type="button" onclick="checkoutCart()" disabled>Checkout →</button>
+                </aside>
+            </div>
         </section>
 
 
-
-        <!-- =====================================================
-             ORDERS
-             ===================================================== -->
-
-        <section
-            id="orders"
-            class="page-section"
-        >
+        <!-- ORDERS -->
+        <section id="orders" class="page-section">
 
             <div class="section-heading">
-
                 <div>
-
-                    <span class="section-kicker">
-                        FIFO PROCESSING
-                    </span>
-
-                    <h2>
-                        Order Queue
-                    </h2>
-
-                    <p>
-                        Orders are processed in the exact
-                        sequence they were placed.
-                    </p>
-
+                    <span class="section-kicker">Priority processing</span>
+                    <h2>Order queue</h2>
+                    <p>Express orders are processed first. Orders with the same priority go in the order they arrived.</p>
                 </div>
-
-
-                <button
-                    class="primary-button compact"
-                    onclick="processNextOrder()"
-                >
-                    Process Next Order →
-                </button>
-
+                <button class="primary-button compact" type="button" onclick="processNextOrder()">Process next order →</button>
             </div>
-
 
             <div class="queue-visual">
-
-                <div class="queue-label">
-
-                    <span>
-                        FRONT
-                    </span>
-
-                    <small>
-                        Next to process
-                    </small>
-
-                </div>
-
-
-                <div
-                    id="queueTrack"
-                    class="queue-track"
-                >
-
-                    <div class="empty-queue">
-                        Queue is empty
-                    </div>
-
-                </div>
-
-
-                <div class="queue-label rear">
-
-                    <span>
-                        REAR
-                    </span>
-
-                    <small>
-                        Newest order
-                    </small>
-
-                </div>
-
+                <div class="queue-label"><span>FRONT</span><small>Next to process</small></div>
+                <div id="queueTrack" class="queue-track"><div class="empty-queue">Queue is empty</div></div>
+                <div class="queue-label rear"><span>REAR</span><small>Last in line</small></div>
             </div>
-
 
             <div class="panel">
-
                 <div class="panel-header">
-
                     <div>
-
-                        <span class="section-kicker">
-                            PENDING ORDERS
-                        </span>
-
-                        <h3>
-                            Manage Orders
-                        </h3>
-
+                        <span class="section-kicker">Pending orders</span>
+                        <h3>Manage orders</h3>
                     </div>
-
-                    <button
-                        class="undo-button"
-                        onclick="undoLastAction()"
-                    >
-                        ↶ Undo Last Action
-                    </button>
-
+                    <button class="undo-button" type="button" onclick="undoLastAction()">↶ Undo last action</button>
                 </div>
-
-
-                <div
-                    id="ordersTable"
-                    class="orders-table"
-                ></div>
-
+                <div id="ordersTable" class="orders-table"></div>
             </div>
-
         </section>
 
 
-
-        <!-- =====================================================
-             DSA ENGINE
-             ===================================================== -->
-
-        <section
-            id="dsa"
-            class="page-section"
-        >
+        <!-- DSA ENGINE -->
+        <section id="dsa" class="page-section">
 
             <div class="section-heading">
-
                 <div>
-
-                    <span class="section-kicker">
-                        UNDER THE HOOD
-                    </span>
-
-                    <h2>
-                        DSA Engine
-                    </h2>
-
-                    <p>
-                        The data structures powering ShopFlow.
-                    </p>
-
+                    <span class="section-kicker">Under the hood</span>
+                    <h2>DSA engine</h2>
+                    <p>The data structures powering ShopFlow.</p>
                 </div>
-
             </div>
-
 
             <div class="dsa-intro">
-
-                <div class="dsa-intro-mark">
-                    DSA
-                </div>
-
+                <div class="dsa-intro-mark">DSA</div>
                 <div>
-
-                    <strong>
-                        Built around three core structures
-                    </strong>
-
-                    <p>
-                        Each part of the order workflow maps
-                        directly to a fundamental data structure.
-                    </p>
-
+                    <strong>Built around three core structures</strong>
+                    <p>Each part of the order workflow maps directly to a fundamental data structure.</p>
                 </div>
-
             </div>
-
-
 
             <div class="dsa-grid">
-
-
-                <!-- BST -->
-
                 <div class="dsa-card bst-card">
-
-                    <div class="dsa-card-top">
-
-                        <div class="dsa-symbol">
-                            BST
-                        </div>
-
-                        <span>
-                            SEARCH
-                        </span>
-
-                    </div>
-
-
-                    <h3>
-                        Binary Search Tree
-                    </h3>
-
-                    <p>
-                        Product IDs are organized hierarchically
-                        to support efficient searching.
-                    </p>
-
-
-                    <div class="tree-visual">
-
-                        <div class="tree-node root">
-                            105
-                        </div>
-
-                        <div class="tree-lines">
-                            <span></span>
-                            <span></span>
-                        </div>
-
-                        <div class="tree-row">
-
-                            <div class="tree-node">
-                                101
-                            </div>
-
-                            <div class="tree-node">
-                                108
-                            </div>
-
-                        </div>
-
-                        <div class="tree-lines lower">
-                            <span></span>
-                            <span></span>
-                        </div>
-
-                        <div class="tree-row small">
-
-                            <div class="tree-node">
-                                103
-                            </div>
-
-                            <div class="tree-node">
-                                110
-                            </div>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="dsa-footer">
-                        PRODUCT LOOKUP
-                        <span>O(log n)</span>
-                    </div>
-
+                    <div class="dsa-card-top"><div class="dsa-symbol">SKIP</div><span>Search</span></div>
+                    <h3>Skip list</h3>
+                    <p>Sorted product IDs with express lanes on top. A search rides the top lane, then drops down, skipping most products.</p>
+                    <div id="skipLanes" class="skip-lanes" aria-label="Live skip list lanes"><div class="loading">Loading…</div></div>
+                    <div class="dsa-footer">Product lookup <span>O(log n) avg</span></div>
                 </div>
-
-
-
-                <!-- QUEUE -->
 
                 <div class="dsa-card queue-card">
-
-                    <div class="dsa-card-top">
-
-                        <div class="dsa-symbol">
-                            FIFO
-                        </div>
-
-                        <span>
-                            PROCESS
-                        </span>
-
-                    </div>
-
-
-                    <h3>
-                        Queue
-                    </h3>
-
-                    <p>
-                        Orders follow First-In, First-Out
-                        processing.
-                    </p>
-
-
-                    <div
-                        id="dsaQueue"
-                        class="mini-queue"
-                    >
-
-                        <span>
-                            FRONT
-                        </span>
-
-                        <div class="mini-box">
-                            1001
-                        </div>
-
-                        <div class="mini-box">
-                            1002
-                        </div>
-
-                        <div class="mini-box">
-                            1003
-                        </div>
-
-                        <span>
-                            REAR
-                        </span>
-
-                    </div>
-
-
-                    <div class="queue-flow-line">
-                        <span></span>
-                        <span></span>
-                        <span></span>
-                    </div>
-
-
-                    <div class="dsa-footer">
-                        ORDER PROCESSING
-                        <span>FIFO</span>
-                    </div>
-
+                    <div class="dsa-card-top"><div class="dsa-symbol">HEAP</div><span>Process</span></div>
+                    <h3>Priority queue</h3>
+                    <p>A binary min-heap. The most urgent order always sits at the top (the root).</p>
+                    <div id="heapTree" class="heap-tree" aria-label="Live heap"><div class="loading">Loading…</div></div>
+                    <div class="dsa-footer">Next order <span>O(log n)</span></div>
                 </div>
-
-
-
-                <!-- STACK -->
 
                 <div class="dsa-card stack-card">
-
-                    <div class="dsa-card-top">
-
-                        <div class="dsa-symbol">
-                            LIFO
-                        </div>
-
-                        <span>
-                            UNDO
-                        </span>
-
+                    <div class="dsa-card-top"><div class="dsa-symbol">LIFO</div><span>Undo</span></div>
+                    <h3>Stack</h3>
+                    <p>Cancellations and edits are reversed newest first.</p>
+                    <div class="stack-visual" aria-hidden="true">
+                        <div class="stack-item top">Undo last</div>
+                        <div class="stack-item">Edit quantity</div>
+                        <div class="stack-item">Cancel order</div>
+                        <small>Top ↓ Bottom</small>
                     </div>
-
-
-                    <h3>
-                        Stack
-                    </h3>
-
-                    <p>
-                        Cancellations and edits can be reversed
-                        in reverse order.
-                    </p>
-
-
-                    <div class="stack-visual">
-
-                        <div class="stack-item top">
-                            Undo Last
-                        </div>
-
-                        <div class="stack-item">
-                            Edit Quantity
-                        </div>
-
-                        <div class="stack-item">
-                            Cancel Order
-                        </div>
-
-                        <small>
-                            TOP ↓ BOTTOM
-                        </small>
-
-                    </div>
-
-
-                    <div class="dsa-footer">
-                        ACTION RECOVERY
-                        <span>LIFO</span>
-                    </div>
-
+                    <div class="dsa-footer">Action recovery <span>LIFO</span></div>
                 </div>
-
             </div>
-
-
-
-            <!-- ARCHITECTURE -->
 
             <div class="architecture-panel">
-
                 <div class="architecture-heading">
-
-                    <div>
-
-                        <span class="section-kicker">
-                            SYSTEM ARCHITECTURE
-                        </span>
-
-                        <h3>
-                            From interface to DSA core
-                        </h3>
-
-                    </div>
-
+                    <span class="section-kicker">System architecture</span>
+                    <h3>From interface to DSA core</h3>
                 </div>
-
-
                 <div class="architecture-flow">
-
-                    <div class="architecture-node">
-
-                        <span class="architecture-number">
-                            01
-                        </span>
-
-                        <strong>
-                            Browser
-                        </strong>
-
-                        <small>
-                            HTML + CSS + JS
-                        </small>
-
-                    </div>
-
-
-                    <span class="architecture-arrow">
-                        →
-                    </span>
-
-
-                    <div class="architecture-node">
-
-                        <span class="architecture-number">
-                            02
-                        </span>
-
-                        <strong>
-                            Node.js
-                        </strong>
-
-                        <small>
-                            Express API
-                        </small>
-
-                    </div>
-
-
-                    <span class="architecture-arrow">
-                        →
-                    </span>
-
-
-                    <div class="architecture-node">
-
-                        <span class="architecture-number">
-                            03
-                        </span>
-
-                        <strong>
-                            C Engine
-                        </strong>
-
-                        <small>
-                            Core Logic
-                        </small>
-
-                    </div>
-
-
-                    <span class="architecture-arrow">
-                        →
-                    </span>
-
-
-                    <div class="architecture-node">
-
-                        <span class="architecture-number">
-                            04
-                        </span>
-
-                        <strong>
-                            BST + Queue + Stack
-                        </strong>
-
-                        <small>
-                            DSA Layer
-                        </small>
-
-                    </div>
-
+                    <div class="architecture-node"><span class="architecture-number">1</span><strong>Browser</strong><small>HTML + CSS + JS</small></div>
+                    <span class="architecture-arrow" aria-hidden="true">→</span>
+                    <div class="architecture-node"><span class="architecture-number">2</span><strong>Node.js</strong><small>Express API</small></div>
+                    <span class="architecture-arrow" aria-hidden="true">→</span>
+                    <div class="architecture-node"><span class="architecture-number">3</span><strong>C engine</strong><small>Core logic</small></div>
+                    <span class="architecture-arrow" aria-hidden="true">→</span>
+                    <div class="architecture-node"><span class="architecture-number">4</span><strong>Skip list + Heap + Stack</strong><small>DSA layer</small></div>
                 </div>
-
             </div>
-
         </section>
 
 
-
-        <!-- =====================================================
-             HISTORY
-             ===================================================== -->
-
-        <section
-            id="history"
-            class="page-section"
-        >
+        <!-- HISTORY -->
+        <section id="history" class="page-section">
 
             <div class="section-heading">
-
                 <div>
-
-                    <span class="section-kicker">
-                        ACTIVITY
-                    </span>
-
-                    <h2>
-                        Order History
-                    </h2>
-
-                    <p>
-                        Successfully processed and recorded
-                        order activity.
-                    </p>
-
+                    <span class="section-kicker">Activity</span>
+                    <h2>Order history</h2>
+                    <p>Everything you did this session, plus the log kept by the server.</p>
                 </div>
-
+                <button class="small-button" type="button" onclick="refreshHistory()">↻ Refresh history</button>
             </div>
 
+            <div class="panel" id="sessionPanel">
+                <div class="panel-header">
+                    <div><span class="section-kicker">This device</span><h3>Your recent actions</h3></div>
+                </div>
+                <div id="sessionLog" class="activity-feed"></div>
+            </div>
 
             <div class="panel">
-
                 <div class="panel-header">
-
                     <div>
-
-                        <span class="section-kicker">
-                            TRANSACTION LOG
-                        </span>
-
-                        <h3>
-                            Recent Activity
-                        </h3>
-
+                        <span class="section-kicker">Server log</span>
+                        <h3>Processed orders</h3>
                     </div>
-
                 </div>
-
-
-                <div
-                    id="historyTable"
-                    class="history-table"
-                >
-
-                    <div class="loading">
-                        Loading history...
-                    </div>
-
+                <div id="historyTable" class="history-table">
+                    <div class="loading">Loading history…</div>
                 </div>
-
             </div>
-
         </section>
 
     </main>
-
 </div>
 
 
-
-<!-- =====================================================
-     TOAST
-     ===================================================== -->
-
-<div
-    id="toast"
-    class="toast"
->
-
-    <span id="toastIcon">
-        ✓
-    </span>
-
-    <div>
-
-        <strong id="toastTitle">
-            Success
-        </strong>
-
-        <p id="toastMessage">
-            Operation completed.
-        </p>
-
+<!-- DIALOG (replaces confirm / prompt) -->
+<div class="modal-backdrop" id="dialog" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dialogTitle" aria-describedby="dialogMessage">
+        <h3 id="dialogTitle"></h3>
+        <p id="dialogMessage"></p>
+        <div id="dialogBody"></div>
+        <div class="modal-actions">
+            <button type="button" class="small-button" id="dialogCancel">Cancel</button>
+            <button type="button" class="primary-button" id="dialogConfirm">Confirm</button>
+        </div>
     </div>
-
 </div>
 
+<!-- TOAST -->
+<div id="toast" class="toast" role="status" aria-live="polite">
+    <span id="toastIcon" aria-hidden="true">✓</span>
+    <div><strong id="toastTitle">Success</strong><p id="toastMessage"></p></div>
+</div>
+
+<!-- AI ASSISTANT (floating button + chat window) -->
+<button id="aiToggle" class="ai-fab" type="button" aria-label="Open ShopFlow AI Assistant" aria-expanded="false" aria-controls="aiPanel">
+    <span class="ai-fab-icon" aria-hidden="true">🤖</span>
+    <span class="ai-fab-text">AI Assist</span>
+</button>
+
+<section id="aiPanel" class="ai-panel" role="dialog" aria-label="ShopFlow AI Assistant" hidden>
+    <header class="ai-header">
+        <div class="ai-avatar" aria-hidden="true">🤖</div>
+        <div class="ai-title">
+            <strong>ShopFlow AI Assistant</strong>
+            <small><span class="status-dot"></span>Online</small>
+        </div>
+        <button id="aiClear" class="ai-icon-btn" type="button" aria-label="Start a new chat" title="New chat">↺</button>
+        <button id="aiClose" class="ai-icon-btn" type="button" aria-label="Close assistant" title="Close">✕</button>
+    </header>
+
+    <div id="aiMessages" class="ai-messages" role="log" aria-live="polite"></div>
+
+    <form id="aiForm" class="ai-form" autocomplete="off">
+        <textarea id="aiInput" rows="1" maxlength="1000" placeholder="Ask about ShopFlow…" aria-label="Your message"></textarea>
+        <button id="aiSend" class="ai-send" type="submit" aria-label="Send message">➤</button>
+    </form>
+    <p class="ai-note">AI can make mistakes. Please double-check important details.</p>
+</section>
 
 <script src="script.js"></script>
-
 </body>
-
 </html>

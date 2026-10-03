@@ -3,1021 +3,574 @@
 #include <string.h>
 
 #include "api.h"
-#include "bst.h"
-#include "queue.h"
+#include "skiplist.h"
+#include "pqueue.h"
 #include "stack.h"
 #include "history.h"
 
 
 /* =========================================================
-   E-COMMERCE SYSTEM STATE
+   SYSTEM STATE
    ========================================================= */
 
 struct EcommerceSystem
 {
-    struct Product *productRoot;
-
-    struct Queue orderQueue;
-
-    struct Stack undoStack;
-
-    struct OrderHistory orderHistory;
-
+    struct SkipList products;        /* product catalogue   */
+    struct PriorityQueue orders;     /* pending orders      */
+    struct Stack undoStack;          /* undo history        */
+    struct OrderHistory history;     /* processed orders    */
     int nextOrderID;
 };
 
 
 /* =========================================================
-   INITIALIZE SYSTEM
+   JSON HELPERS  (API mode must print JSON lines only)
    ========================================================= */
 
-void initializeSystem(struct EcommerceSystem *system)
+static void fail(const char *message)
 {
-    system->productRoot = NULL;
+    printf("{\"success\":false,\"message\":\"%s\"}\n", message);
+    fflush(stdout);
+}
 
-    initializeQueue(&system->orderQueue);
+static const char *priorityLabel(int priority)
+{
+    if (priority == PRIORITY_EXPRESS) return "Express";
+    if (priority == PRIORITY_ECONOMY) return "Economy";
+    return "Standard";
+}
 
+static void printOrder(const struct Order *o)
+{
+    printf("{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,"
+           "\"priority\":%d,\"priorityLabel\":\"%s\",\"status\":\"%s\"}",
+           o->orderID, o->productID, o->quantity, o->totalAmount,
+           o->priority, priorityLabel(o->priority), o->status);
+}
+
+static void printProduct(const struct Product *p)
+{
+    printf("{\"id\":%d,\"name\":\"%s\",\"price\":%.2f,\"stock\":%d,\"level\":%d}",
+           p->productID, p->name, p->price, p->stock, p->level);
+}
+
+/* Strict integer parse: the whole string must be a number */
+static int parseInt(const char *text, int *out)
+{
+    char *end;
+    long value;
+
+    if (text == NULL || *text == '\0')
+    {
+        return 0;
+    }
+
+    value = strtol(text, &end, 10);
+
+    if (*end != '\0')
+    {
+        return 0;
+    }
+
+    *out = (int)value;
+    return 1;
+}
+
+static int validPriority(int priority)
+{
+    return priority >= PRIORITY_EXPRESS && priority <= PRIORITY_ECONOMY;
+}
+
+
+/* =========================================================
+   INITIALISE
+   ========================================================= */
+
+static void initializeSystem(struct EcommerceSystem *system)
+{
+    initSkipList(&system->products);
+    initPriorityQueue(&system->orders);
     initializeStack(&system->undoStack);
-
-    initializeHistory(&system->orderHistory);
+    initializeHistory(&system->history);
 
     system->nextOrderID = 1001;
 
-
-    /* Default products */
-
-    system->productRoot = insertProduct(
-        system->productRoot,
-        101,
-        "Smartphone",
-        30000,
-        15
-    );
-
-    system->productRoot = insertProduct(
-        system->productRoot,
-        103,
-        "Keyboard",
-        1500,
-        20
-    );
-
-    system->productRoot = insertProduct(
-        system->productRoot,
-        105,
-        "Laptop",
-        65000,
-        10
-    );
-
-    system->productRoot = insertProduct(
-        system->productRoot,
-        108,
-        "Smartwatch",
-        5000,
-        12
-    );
-
-    system->productRoot = insertProduct(
-        system->productRoot,
-        110,
-        "Headphones",
-        2500,
-        25
-    );
+    skipInsert(&system->products, 101, "Smartphone", 30000, 15);
+    skipInsert(&system->products, 103, "Keyboard",    1500, 20);
+    skipInsert(&system->products, 105, "Laptop",     65000, 10);
+    skipInsert(&system->products, 108, "Smartwatch",  5000, 12);
+    skipInsert(&system->products, 110, "Headphones",  2500, 25);
 }
 
 
 /* =========================================================
-   SEARCH PRODUCT
+   PRODUCTS
    ========================================================= */
 
-void apiSearchProduct(
-    struct EcommerceSystem *system,
-    int productID)
+static void apiSearchProduct(struct EcommerceSystem *system, int productID)
 {
-    struct Product *product;
-
-    product = searchProduct(
-        system->productRoot,
-        productID
-    );
+    int steps = 0;
+    struct Product *product = skipSearch(&system->products, productID, &steps);
 
     if (product == NULL)
     {
-        printf(
-            "{\"success\":false,\"message\":\"Product not found\"}\n"
-        );
-
+        printf("{\"success\":false,\"message\":\"Product not found\",\"steps\":%d}\n", steps);
         fflush(stdout);
-
         return;
     }
 
-    printf(
-        "{\"success\":true,\"product\":{\"id\":%d,\"name\":\"%s\",\"price\":%.2f,\"stock\":%d}}\n",
-        product->productID,
-        product->name,
-        product->price,
-        product->stock
-    );
-
+    printf("{\"success\":true,\"steps\":%d,\"product\":", steps);
+    printProduct(product);
+    printf("}\n");
     fflush(stdout);
 }
 
-
-/* =========================================================
-   VIEW PRODUCTS
-   ========================================================= */
-
-void apiViewProducts(
-    struct EcommerceSystem *system)
+static void apiViewProducts(struct EcommerceSystem *system)
 {
-    struct Product *current;
+    struct Product *current = system->products.header->forward[0];
     int first = 1;
 
-    printf(
-        "{\"success\":true,\"products\":["
-    );
+    printf("{\"success\":true,\"products\":[");
 
-    /*
-       In-order BST traversal.
-       This displays products in sorted
-       order of product ID.
-    */
-
-    /*
-       Stack-based traversal is used here
-       so that we do not need another
-       nested function.
-    */
-
-    struct Product *stack[100];
-    int top = -1;
-
-    current = system->productRoot;
-
-    while (current != NULL || top >= 0)
+    /* Level 0 of a skip list is a sorted linked list of every product */
+    while (current != NULL)
     {
-        while (current != NULL)
-        {
-            stack[++top] = current;
-            current = current->left;
-        }
-
-        current = stack[top--];
-
-        if (!first)
-        {
-            printf(",");
-        }
-
-        printf(
-            "{\"id\":%d,\"name\":\"%s\",\"price\":%.2f,\"stock\":%d}",
-            current->productID,
-            current->name,
-            current->price,
-            current->stock
-        );
-
+        if (!first) printf(",");
+        printProduct(current);
         first = 0;
-
-        current = current->right;
+        current = current->forward[0];
     }
 
     printf("]}\n");
+    fflush(stdout);
+}
 
+/* Every lane of the skip list, for the DSA visualisation */
+static void apiViewSkipList(struct EcommerceSystem *system)
+{
+    int level;
+
+    printf("{\"success\":true,\"size\":%d,\"levels\":[", system->products.size);
+
+    for (level = 0; level <= system->products.level; level++)
+    {
+        struct Product *current = system->products.header->forward[level];
+        int first = 1;
+
+        if (level > 0) printf(",");
+        printf("[");
+
+        while (current != NULL)
+        {
+            if (!first) printf(",");
+            printf("%d", current->productID);
+            first = 0;
+            current = current->forward[level];
+        }
+
+        printf("]");
+    }
+
+    printf("]}\n");
     fflush(stdout);
 }
 
 
 /* =========================================================
-   PLACE ORDER
+   ORDERS
    ========================================================= */
 
-void apiPlaceOrder(
-    struct EcommerceSystem *system,
-    int productID,
-    int quantity)
+static void apiPlaceOrder(struct EcommerceSystem *system,
+                          int productID, int quantity, int priority)
 {
-    struct Product *product;
-
-    product = searchProduct(
-        system->productRoot,
-        productID
-    );
-
-    if (product == NULL)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Product not found\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-    if (quantity <= 0)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Invalid quantity\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-    if (quantity > product->stock)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Insufficient stock\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
+    struct Product *product = skipSearch(&system->products, productID, NULL);
     struct Order order;
 
+    if (product == NULL)             { fail("Product not found"); return; }
+    if (quantity <= 0)               { fail("Invalid quantity"); return; }
+    if (!validPriority(priority))    { fail("Invalid priority"); return; }
+    if (quantity > product->stock)   { fail("Insufficient stock"); return; }
+
+    memset(&order, 0, sizeof(order));
     order.orderID = system->nextOrderID++;
-
     order.productID = productID;
-
     order.quantity = quantity;
+    order.totalAmount = product->price * quantity;
+    order.priority = priority;
+    strcpy(order.status, "Pending");
 
-    order.totalAmount =
-        product->price * quantity;
-
-    strcpy(
-        order.status,
-        "Pending"
-    );
-
-
-    enqueue(
-        &system->orderQueue,
-        order
-    );
-
+    if (!pqPush(&system->orders, order))
+    {
+        fail("Out of memory");
+        return;
+    }
 
     product->stock -= quantity;
 
-
-    /*
-       IMPORTANT:
-       The enqueue() function must NOT print
-       anything when the C program is being
-       used in API mode.
-
-       Only this JSON response should be
-       sent to Node.js.
-    */
-
-    printf(
-        "{\"success\":true,\"message\":\"Order placed successfully\",\"order\":{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,\"status\":\"Pending\"}}\n",
-        order.orderID,
-        order.productID,
-        order.quantity,
-        order.totalAmount
-    );
-
+    printf("{\"success\":true,\"message\":\"Order placed successfully\",\"order\":");
+    printOrder(&order);
+    printf("}\n");
     fflush(stdout);
 }
 
-
-/* =========================================================
-   VIEW QUEUE
-   ========================================================= */
-
-void apiViewQueue(
-    struct EcommerceSystem *system)
+static void apiViewQueue(struct EcommerceSystem *system)
 {
-    struct QueueNode *current;
+    struct Order *sorted = NULL;
+    int count = system->orders.size;
+    int i;
 
-    current = system->orderQueue.front;
-
-    printf(
-        "{\"success\":true,\"orders\":["
-    );
-
-    int first = 1;
-
-    while (current != NULL)
+    if (count > 0)
     {
-        if (!first)
+        sorted = (struct Order *)malloc(count * sizeof(struct Order));
+
+        if (sorted == NULL)
         {
-            printf(",");
+            fail("Out of memory");
+            return;
         }
 
-        printf(
-            "{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,\"status\":\"%s\"}",
-            current->order.orderID,
-            current->order.productID,
-            current->order.quantity,
-            current->order.totalAmount,
-            current->order.status
-        );
+        pqSortedCopy(&system->orders, sorted);
+    }
 
-        first = 0;
+    /* "orders" is in processing order; "heap" is the raw heap array */
+    printf("{\"success\":true,\"orders\":[");
 
-        current = current->next;
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0) printf(",");
+        printOrder(&sorted[i]);
+    }
+
+    printf("],\"heap\":[");
+
+    for (i = 0; i < count; i++)
+    {
+        if (i > 0) printf(",");
+        printf("{\"id\":%d,\"priority\":%d}",
+               system->orders.items[i].orderID,
+               system->orders.items[i].priority);
     }
 
     printf("]}\n");
-
     fflush(stdout);
+
+    free(sorted);
 }
 
-
-/* =========================================================
-   PROCESS NEXT ORDER
-   ========================================================= */
-
-void apiProcessOrder(
-    struct EcommerceSystem *system)
+static void apiProcessOrder(struct EcommerceSystem *system)
 {
-    if (isQueueEmpty(&system->orderQueue))
+    struct Order order;
+
+    if (!pqPop(&system->orders, &order))
     {
-        printf(
-            "{\"success\":false,\"message\":\"No pending orders\"}\n"
-        );
-
-        fflush(stdout);
-
+        fail("No pending orders");
         return;
     }
 
+    strcpy(order.status, "Processed");
+    addToHistory(&system->history, order);
 
-    struct Order processedOrder;
-
-    processedOrder =
-        system->orderQueue.front->order;
-
-    strcpy(
-        processedOrder.status,
-        "Processed"
-    );
-
-
-    addToHistory(
-        &system->orderHistory,
-        processedOrder
-    );
-
-
-    dequeue(
-        &system->orderQueue
-    );
-
-
-    printf(
-        "{\"success\":true,\"message\":\"Order processed successfully\",\"order\":{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,\"status\":\"Processed\"}}\n",
-        processedOrder.orderID,
-        processedOrder.productID,
-        processedOrder.quantity,
-        processedOrder.totalAmount
-    );
-
+    printf("{\"success\":true,\"message\":\"Order processed successfully\",\"order\":");
+    printOrder(&order);
+    printf("}\n");
     fflush(stdout);
 }
 
-
-/* =========================================================
-   EDIT ORDER
-   ========================================================= */
-
-void apiEditOrder(
-    struct EcommerceSystem *system,
-    int orderID,
-    int newQuantity)
+static void apiEditOrder(struct EcommerceSystem *system, int orderID, int newQuantity)
 {
-    struct QueueNode *node;
-
-    node = findOrder(
-        &system->orderQueue,
-        orderID
-    );
-
-    if (node == NULL)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Pending order not found\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
+    int index = pqFindIndex(&system->orders, orderID);
+    struct Order *order;
     struct Product *product;
-
-    product = searchProduct(
-        system->productRoot,
-        node->order.productID
-    );
-
-    if (product == NULL)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Product not found\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
-    if (newQuantity <= 0)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Invalid quantity\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
-    int difference =
-        newQuantity - node->order.quantity;
-
-
-    if (difference > 0 &&
-        difference > product->stock)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Insufficient stock for quantity increase\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
     struct OrderAction action;
+    int difference;
 
+    if (index < 0)         { fail("Pending order not found"); return; }
+    if (newQuantity <= 0)  { fail("Invalid quantity"); return; }
+
+    order = &system->orders.items[index];
+    product = skipSearch(&system->products, order->productID, NULL);
+
+    if (product == NULL)   { fail("Product not found"); return; }
+
+    difference = newQuantity - order->quantity;
+
+    if (difference > product->stock)
+    {
+        fail("Insufficient stock for quantity increase");
+        return;
+    }
+
+    memset(&action, 0, sizeof(action));
     action.orderID = orderID;
-
-    strcpy(
-        action.actionType,
-        "Quantity Changed"
-    );
-
-    action.productID =
-        node->order.productID;
-
-    action.oldQuantity =
-        node->order.quantity;
-
-    action.newQuantity =
-        newQuantity;
-
-    action.oldAmount =
-        node->order.totalAmount;
-
-    action.newAmount =
-        product->price * newQuantity;
-
-    action.oldStock =
-        product->stock;
-
-    action.newStock =
-        product->stock - difference;
-
-
-    push(
-        &system->undoStack,
-        action
-    );
-
+    strcpy(action.actionType, "Quantity Changed");
+    action.productID = order->productID;
+    action.oldQuantity = order->quantity;
+    action.newQuantity = newQuantity;
+    action.oldAmount = order->totalAmount;
+    action.newAmount = product->price * newQuantity;
+    push(&system->undoStack, action);
 
     product->stock -= difference;
+    order->quantity = newQuantity;
+    order->totalAmount = action.newAmount;
 
-    node->order.quantity =
-        newQuantity;
-
-    node->order.totalAmount =
-        product->price * newQuantity;
-
-
-    printf(
-        "{\"success\":true,\"message\":\"Order updated successfully\",\"order\":{\"id\":%d,\"quantity\":%d,\"amount\":%.2f}}\n",
-        orderID,
-        newQuantity,
-        node->order.totalAmount
-    );
-
+    printf("{\"success\":true,\"message\":\"Order updated successfully\",\"order\":");
+    printOrder(order);
+    printf("}\n");
     fflush(stdout);
 }
 
-
-/* =========================================================
-   CANCEL ORDER
-   ========================================================= */
-
-void apiCancelOrder(
-    struct EcommerceSystem *system,
-    int orderID)
+static void apiSetPriority(struct EcommerceSystem *system, int orderID, int priority)
 {
-    struct QueueNode *node;
-
-    node = findOrder(
-        &system->orderQueue,
-        orderID
-    );
-
-    if (node == NULL)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Pending order not found\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
-    struct Product *product;
-
-    product = searchProduct(
-        system->productRoot,
-        node->order.productID
-    );
-
-    if (product == NULL)
-    {
-        printf(
-            "{\"success\":false,\"message\":\"Product not found\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
+    int index = pqFindIndex(&system->orders, orderID);
     struct OrderAction action;
 
+    if (index < 0)                { fail("Pending order not found"); return; }
+    if (!validPriority(priority)) { fail("Invalid priority"); return; }
+
+    if (system->orders.items[index].priority == priority)
+    {
+        fail("Order already has this priority");
+        return;
+    }
+
+    memset(&action, 0, sizeof(action));
     action.orderID = orderID;
+    strcpy(action.actionType, "Priority Changed");
+    action.productID = system->orders.items[index].productID;
+    action.oldPriority = system->orders.items[index].priority;
+    action.newPriority = priority;
+    push(&system->undoStack, action);
 
-    strcpy(
-        action.actionType,
-        "Order Cancelled"
-    );
+    pqChangePriority(&system->orders, index, priority);
 
-    action.productID =
-        node->order.productID;
+    printf("{\"success\":true,\"message\":\"Priority changed to %s\",\"orderID\":%d}\n",
+           priorityLabel(priority), orderID);
+    fflush(stdout);
+}
 
-    action.oldQuantity =
-        node->order.quantity;
+static void apiCancelOrder(struct EcommerceSystem *system, int orderID)
+{
+    int index = pqFindIndex(&system->orders, orderID);
+    struct Order order;
+    struct Product *product;
+    struct OrderAction action;
 
-    action.newQuantity = 0;
+    if (index < 0) { fail("Pending order not found"); return; }
 
-    action.oldAmount =
-        node->order.totalAmount;
+    order = system->orders.items[index];
+    product = skipSearch(&system->products, order.productID, NULL);
 
-    action.newAmount = 0;
+    if (product == NULL) { fail("Product not found"); return; }
 
-    action.oldStock =
-        product->stock;
+    memset(&action, 0, sizeof(action));
+    action.orderID = orderID;
+    strcpy(action.actionType, "Order Cancelled");
+    action.productID = order.productID;
+    action.oldQuantity = order.quantity;
+    action.oldAmount = order.totalAmount;
+    action.oldPriority = order.priority;
+    action.sequence = order.sequence;
+    push(&system->undoStack, action);
 
-    action.newStock =
-        product->stock + node->order.quantity;
+    product->stock += order.quantity;
+    pqRemoveAt(&system->orders, index);
 
-
-    push(
-        &system->undoStack,
-        action
-    );
-
-
-    product->stock +=
-        node->order.quantity;
-
-
-    cancelOrder(
-        &system->orderQueue,
-        orderID
-    );
-
-
-    printf(
-        "{\"success\":true,\"message\":\"Order cancelled successfully\",\"orderID\":%d}\n",
-        orderID
-    );
-
+    printf("{\"success\":true,\"message\":\"Order cancelled successfully\",\"orderID\":%d}\n", orderID);
     fflush(stdout);
 }
 
 
 /* =========================================================
-   UNDO
+   UNDO  (stack, last in first out)
    ========================================================= */
 
-void apiUndo(
-    struct EcommerceSystem *system)
+static void apiUndo(struct EcommerceSystem *system)
 {
-    if (isStackEmpty(
-            &system->undoStack))
+    struct OrderAction action;
+    struct Product *product;
+    int index;
+
+    if (isStackEmpty(&system->undoStack))
     {
-        printf(
-            "{\"success\":false,\"message\":\"Nothing to undo\"}\n"
-        );
-
-        fflush(stdout);
-
+        fail("Nothing to undo");
         return;
     }
 
+    action = system->undoStack.top->action;
+    pop(&system->undoStack);
 
-    struct OrderAction action;
+    product = skipSearch(&system->products, action.productID, NULL);
+    index = pqFindIndex(&system->orders, action.orderID);
 
-    action =
-        system->undoStack.top->action;
-
-
-    if (strcmp(
-            action.actionType,
-            "Quantity Changed") == 0)
-    {
-        struct QueueNode *node;
-
-        node = findOrder(
-            &system->orderQueue,
-            action.orderID
-        );
-
-        if (node != NULL)
-        {
-            struct Product *product;
-
-            product = searchProduct(
-                system->productRoot,
-                action.productID
-            );
-
-            if (product != NULL)
-            {
-                node->order.quantity =
-                    action.oldQuantity;
-
-                node->order.totalAmount =
-                    action.oldAmount;
-
-                product->stock =
-                    action.oldStock;
-            }
-        }
-    }
-
-
-    else if (
-        strcmp(
-            action.actionType,
-            "Order Cancelled"
-        ) == 0)
+    if (strcmp(action.actionType, "Order Cancelled") == 0)
     {
         struct Order order;
 
-        order.orderID =
-            action.orderID;
-
-        order.productID =
-            action.productID;
-
-        order.quantity =
-            action.oldQuantity;
-
-        order.totalAmount =
-            action.oldAmount;
-
-        strcpy(
-            order.status,
-            "Pending"
-        );
-
-
-        enqueue(
-            &system->orderQueue,
-            order
-        );
-
-
-        struct Product *product;
-
-        product = searchProduct(
-            system->productRoot,
-            action.productID
-        );
-
-        if (product != NULL)
+        if (product == NULL || product->stock < action.oldQuantity)
         {
-            product->stock =
-                action.oldStock;
+            fail("Not enough stock to restore the cancelled order");
+            return;
         }
+
+        memset(&order, 0, sizeof(order));
+        order.orderID = action.orderID;
+        order.productID = action.productID;
+        order.quantity = action.oldQuantity;
+        order.totalAmount = action.oldAmount;
+        order.priority = action.oldPriority;
+        order.sequence = action.sequence;      /* same place in line as before */
+        strcpy(order.status, "Pending");
+
+        product->stock -= action.oldQuantity;
+        pqPush(&system->orders, order);
+    }
+    else if (index < 0 || product == NULL)
+    {
+        fail("That order was already processed, nothing to undo");
+        return;
+    }
+    else if (strcmp(action.actionType, "Quantity Changed") == 0)
+    {
+        int difference = action.newQuantity - action.oldQuantity;
+
+        if (product->stock + difference < 0)
+        {
+            fail("Not enough stock to restore the old quantity");
+            return;
+        }
+
+        system->orders.items[index].quantity = action.oldQuantity;
+        system->orders.items[index].totalAmount = action.oldAmount;
+        product->stock += difference;           /* adjust by the difference only */
+    }
+    else if (strcmp(action.actionType, "Priority Changed") == 0)
+    {
+        pqChangePriority(&system->orders, index, action.oldPriority);
     }
 
-
-    pop(
-        &system->undoStack
-    );
-
-
-    printf(
-        "{\"success\":true,\"message\":\"Last action undone\",\"action\":\"%s\",\"orderID\":%d}\n",
-        action.actionType,
-        action.orderID
-    );
-
+    printf("{\"success\":true,\"message\":\"Undid: %s\",\"action\":\"%s\",\"orderID\":%d}\n",
+           action.actionType, action.actionType, action.orderID);
     fflush(stdout);
 }
 
 
 /* =========================================================
-   ORDER HISTORY
+   HISTORY
    ========================================================= */
 
-void apiViewHistory(
-    struct EcommerceSystem *system)
+static void apiViewHistory(struct EcommerceSystem *system)
 {
-    struct HistoryNode *current;
-
-    current =
-        system->orderHistory.head;
-
-    printf(
-        "{\"success\":true,\"orders\":["
-    );
-
+    struct HistoryNode *current = system->history.head;
     int first = 1;
+
+    printf("{\"success\":true,\"orders\":[");
 
     while (current != NULL)
     {
-        if (!first)
-        {
-            printf(",");
-        }
-
-        printf(
-            "{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,\"status\":\"%s\"}",
-            current->order.orderID,
-            current->order.productID,
-            current->order.quantity,
-            current->order.totalAmount,
-            current->order.status
-        );
-
+        if (!first) printf(",");
+        printOrder(&current->order);
         first = 0;
-
         current = current->next;
     }
 
     printf("]}\n");
-
     fflush(stdout);
 }
 
 
 /* =========================================================
    COMMAND PROCESSOR
+   Format: COMMAND|arg1|arg2|arg3
    ========================================================= */
 
-void processCommand(
-    struct EcommerceSystem *system,
-    char *command)
+static void processCommand(struct EcommerceSystem *system, char *line)
 {
-    char *operation;
+    char *args[4] = { NULL, NULL, NULL, NULL };
+    char *token = strtok(line, "|");
+    int count = 0;
+    int a = 0, b = 0, c = 0;
 
-    operation =
-        strtok(command, "|");
-
-
-    if (operation == NULL)
+    while (token != NULL && count < 4)
     {
-        printf(
-            "{\"success\":false,\"message\":\"Invalid command\"}\n"
-        );
+        args[count++] = token;
+        token = strtok(NULL, "|");
+    }
 
+    if (count == 0)
+    {
+        fail("Invalid command");
+        return;
+    }
+
+    if (strcmp(args[0], "VIEW_PRODUCTS") == 0) { apiViewProducts(system); return; }
+    if (strcmp(args[0], "SKIPLIST") == 0)      { apiViewSkipList(system); return; }
+    if (strcmp(args[0], "VIEW_QUEUE") == 0)    { apiViewQueue(system);    return; }
+    if (strcmp(args[0], "PROCESS_ORDER") == 0) { apiProcessOrder(system); return; }
+    if (strcmp(args[0], "UNDO") == 0)          { apiUndo(system);         return; }
+    if (strcmp(args[0], "VIEW_HISTORY") == 0)  { apiViewHistory(system);  return; }
+
+    if (strcmp(args[0], "EXIT") == 0)
+    {
+        printf("{\"success\":true,\"message\":\"C API shutting down\"}\n");
         fflush(stdout);
-
         return;
     }
 
-
-    /* SEARCH */
-
-    if (strcmp(operation, "SEARCH") == 0)
+    if (strcmp(args[0], "SEARCH") == 0)
     {
-        char *idText;
+        if (!parseInt(args[1], &a)) { fail("Product ID required"); return; }
+        apiSearchProduct(system, a);
+        return;
+    }
 
-        idText =
-            strtok(NULL, "|");
+    if (strcmp(args[0], "PLACE_ORDER") == 0)
+    {
+        c = PRIORITY_STANDARD;      /* priority is optional */
 
-        if (idText == NULL)
+        if (!parseInt(args[1], &a) || !parseInt(args[2], &b) ||
+            (args[3] != NULL && !parseInt(args[3], &c)))
         {
-            printf(
-                "{\"success\":false,\"message\":\"Product ID required\"}\n"
-            );
-
-            fflush(stdout);
-
+            fail("Product ID and quantity required");
             return;
         }
 
-        apiSearchProduct(
-            system,
-            atoi(idText)
-        );
-
+        apiPlaceOrder(system, a, b, c);
         return;
     }
 
-
-    /* PRODUCTS */
-
-    if (strcmp(operation, "VIEW_PRODUCTS") == 0)
+    if (strcmp(args[0], "EDIT_ORDER") == 0)
     {
-        apiViewProducts(system);
-
-        return;
-    }
-
-
-    /* PLACE ORDER */
-
-    if (strcmp(operation, "PLACE_ORDER") == 0)
-    {
-        char *productText;
-        char *quantityText;
-
-        productText =
-            strtok(NULL, "|");
-
-        quantityText =
-            strtok(NULL, "|");
-
-
-        if (productText == NULL ||
-            quantityText == NULL)
+        if (!parseInt(args[1], &a) || !parseInt(args[2], &b))
         {
-            printf(
-                "{\"success\":false,\"message\":\"Product ID and quantity required\"}\n"
-            );
-
-            fflush(stdout);
-
+            fail("Order ID and quantity required");
             return;
         }
 
-
-        apiPlaceOrder(
-            system,
-            atoi(productText),
-            atoi(quantityText)
-        );
-
+        apiEditOrder(system, a, b);
         return;
     }
 
-
-    /* VIEW QUEUE */
-
-    if (strcmp(operation, "VIEW_QUEUE") == 0)
+    if (strcmp(args[0], "SET_PRIORITY") == 0)
     {
-        apiViewQueue(system);
-
-        return;
-    }
-
-
-    /* PROCESS */
-
-    if (strcmp(operation, "PROCESS_ORDER") == 0)
-    {
-        apiProcessOrder(system);
-
-        return;
-    }
-
-
-    /* EDIT */
-
-    if (strcmp(operation, "EDIT_ORDER") == 0)
-    {
-        char *orderText;
-        char *quantityText;
-
-        orderText =
-            strtok(NULL, "|");
-
-        quantityText =
-            strtok(NULL, "|");
-
-
-        if (orderText == NULL ||
-            quantityText == NULL)
+        if (!parseInt(args[1], &a) || !parseInt(args[2], &b))
         {
-            printf(
-                "{\"success\":false,\"message\":\"Order ID and quantity required\"}\n"
-            );
-
-            fflush(stdout);
-
+            fail("Order ID and priority required");
             return;
         }
 
-
-        apiEditOrder(
-            system,
-            atoi(orderText),
-            atoi(quantityText)
-        );
-
+        apiSetPriority(system, a, b);
         return;
     }
 
-
-    /* CANCEL */
-
-    if (strcmp(operation, "CANCEL_ORDER") == 0)
+    if (strcmp(args[0], "CANCEL_ORDER") == 0)
     {
-        char *orderText;
-
-        orderText =
-            strtok(NULL, "|");
-
-
-        if (orderText == NULL)
-        {
-            printf(
-                "{\"success\":false,\"message\":\"Order ID required\"}\n"
-            );
-
-            fflush(stdout);
-
-            return;
-        }
-
-
-        apiCancelOrder(
-            system,
-            atoi(orderText)
-        );
-
+        if (!parseInt(args[1], &a)) { fail("Order ID required"); return; }
+        apiCancelOrder(system, a);
         return;
     }
 
-
-    /* UNDO */
-
-    if (strcmp(operation, "UNDO") == 0)
-    {
-        apiUndo(system);
-
-        return;
-    }
-
-
-    /* HISTORY */
-
-    if (strcmp(operation, "VIEW_HISTORY") == 0)
-    {
-        apiViewHistory(system);
-
-        return;
-    }
-
-
-    /* EXIT */
-
-    if (strcmp(operation, "EXIT") == 0)
-    {
-        printf(
-            "{\"success\":true,\"message\":\"C API shutting down\"}\n"
-        );
-
-        fflush(stdout);
-
-        return;
-    }
-
-
-    /* UNKNOWN COMMAND */
-
-    printf(
-        "{\"success\":false,\"message\":\"Unknown command\"}\n"
-    );
-
-    fflush(stdout);
+    fail("Unknown command");
 }
 
 
@@ -1028,52 +581,25 @@ void processCommand(
 void runApiMode(void)
 {
     struct EcommerceSystem system;
-
-    char command[500];
-
+    char line[500];
 
     initializeSystem(&system);
 
-
-    /*
-       IMPORTANT:
-       API mode must produce ONLY JSON output.
-    */
-
-    while (
-        fgets(
-            command,
-            sizeof(command),
-            stdin
-        ) != NULL)
+    while (fgets(line, sizeof(line), stdin) != NULL)
     {
-        command[
-            strcspn(
-                command,
-                "\r\n"
-            )
-        ] = '\0';
+        line[strcspn(line, "\r\n")] = '\0';
 
-
-        if (strcmp(command, "EXIT") == 0)
+        if (strcmp(line, "EXIT") == 0)
         {
-            processCommand(
-                &system,
-                command
-            );
-
+            processCommand(&system, line);
             break;
         }
 
-
-        processCommand(
-            &system,
-            command
-        );
+        processCommand(&system, line);
     }
 
-
-    freeHistory(
-        &system.orderHistory
-    );
+    freeSkipList(&system.products);
+    freePriorityQueue(&system.orders);
+    freeStack(&system.undoStack);
+    freeHistory(&system.history);
 }

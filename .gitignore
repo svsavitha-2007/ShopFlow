@@ -1,17 +1,9 @@
-# Dependency directories
+.env
 node_modules/
 
-# Logs
+*.exe
+*.o
 *.log
 
-# Environment files
-.env
-
-# VS Code settings
-.vscode/
-
-# Build outputs
-dist/
-build/
-
-
+.DS_Store
+Thumbs.db
