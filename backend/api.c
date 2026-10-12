@@ -93,13 +93,88 @@ static void initializeSystem(struct EcommerceSystem *system)
     initializeStack(&system->undoStack);
     initializeHistory(&system->history);
 
+    /* A varied starter catalogue keeps the Skip List useful on first launch. */
     system->nextOrderID = 1001;
 
-    skipInsert(&system->products, 101, "Smartphone", 30000, 15);
-    skipInsert(&system->products, 103, "Keyboard",    1500, 20);
-    skipInsert(&system->products, 105, "Laptop",     65000, 10);
-    skipInsert(&system->products, 108, "Smartwatch",  5000, 12);
-    skipInsert(&system->products, 110, "Headphones",  2500, 25);
+    skipInsert(&system->products, 101, "Smartphone",       30000, 15);
+    skipInsert(&system->products, 103, "Keyboard",          1500, 20);
+    skipInsert(&system->products, 105, "Laptop",            65000, 10);
+    skipInsert(&system->products, 108, "Smartwatch",         5000, 12);
+    skipInsert(&system->products, 110, "Headphones",         2500, 25);
+    skipInsert(&system->products, 112, "Wireless Mouse",      899, 35);
+    skipInsert(&system->products, 113, "USB-C Hub",          1799, 22);
+    skipInsert(&system->products, 114, "Bluetooth Speaker",  2499, 18);
+    skipInsert(&system->products, 115, "Android Tablet",    22999, 14);
+    skipInsert(&system->products, 116, "Laptop Stand",       1299, 30);
+    skipInsert(&system->products, 117, "Webcam HD",          3499, 16);
+    skipInsert(&system->products, 118, "Mechanical Keyboard",4599, 12);
+    skipInsert(&system->products, 119, "Power Bank",         1499, 28);
+    skipInsert(&system->products, 120, "Wireless Earbuds",   2999, 24);
+    skipInsert(&system->products, 121, "Gaming Mouse",       2199, 20);
+    skipInsert(&system->products, 122, "Gaming Headset",     3999, 15);
+    skipInsert(&system->products, 123, "Portable SSD 1TB",  7499, 11);
+    skipInsert(&system->products, 124, "External HDD 2TB",  5999, 13);
+    skipInsert(&system->products, 125, "Wi-Fi Router",      2899, 17);
+    skipInsert(&system->products, 126, "Smart Bulb Set",    1199, 32);
+    skipInsert(&system->products, 127, "Security Camera",   4299, 10);
+    skipInsert(&system->products, 128, "Fitness Band",      1999, 26);
+    skipInsert(&system->products, 129, "DSLR Camera",      48999, 6);
+    skipInsert(&system->products, 130, "Camera Tripod",     1799, 19);
+    skipInsert(&system->products, 131, "Ring Light",         999, 27);
+    skipInsert(&system->products, 132, "Laser Printer",    12999, 8);
+    skipInsert(&system->products, 133, "Ink Cartridge",     1599, 21);
+    skipInsert(&system->products, 134, "Office Chair",      8999, 9);
+    skipInsert(&system->products, 135, "Desk Lamp",          799, 31);
+    skipInsert(&system->products, 136, "Air Purifier",      9999, 7);
+    skipInsert(&system->products, 137, "Electric Kettle",   1499, 23);
+    skipInsert(&system->products, 138, "Coffee Maker",      4999, 12);
+    skipInsert(&system->products, 139, "Air Fryer",         6999, 10);
+    skipInsert(&system->products, 140, "Mixer Grinder",     3499, 14);
+    skipInsert(&system->products, 141, "Induction Cooktop", 2799, 18);
+    skipInsert(&system->products, 142, "Vacuum Cleaner",    8499, 8);
+    skipInsert(&system->products, 143, "Travel Backpack",   1899, 25);
+    skipInsert(&system->products, 144, "Carry-on Suitcase", 5499, 11);
+    skipInsert(&system->products, 145, "Water Bottle",       599, 40);
+    skipInsert(&system->products, 146, "Desk Organizer",     699, 33);
+    skipInsert(&system->products, 147, "4K Smart TV",       32999, 7);
+    skipInsert(&system->products, 148, "27-inch Monitor",  15999, 9);
+    skipInsert(&system->products, 149, "Monitor Arm",       2499, 13);
+    skipInsert(&system->products, 150, "HDMI Cable",         399, 45);
+    skipInsert(&system->products, 151, "USB Flash Drive",    599, 38);
+    skipInsert(&system->products, 152, "Surge Protector",    899, 24);
+    skipInsert(&system->products, 153, "Phone Case",         499, 42);
+    skipInsert(&system->products, 154, "Screen Protector",   299, 50);
+    skipInsert(&system->products, 155, "Fast Charger",       999, 29);
+    skipInsert(&system->products, 156, "Bluetooth Tracker", 1799, 16);
+
+    /* Seed a small, realistic queue so the heap is visible before checkout. */
+    {
+        const int demoProductIDs[] = {105, 115, 101, 121, 110};
+        const int demoQuantities[] = {1, 1, 1, 2, 2};
+        const int demoPriorities[] = {PRIORITY_EXPRESS, PRIORITY_EXPRESS,
+                                      PRIORITY_STANDARD, PRIORITY_STANDARD,
+                                      PRIORITY_ECONOMY};
+        int i;
+
+        for (i = 0; i < 5; i++)
+        {
+            struct Product *product = skipSearch(&system->products, demoProductIDs[i], NULL);
+            struct Order order;
+
+            if (product == NULL || product->stock < demoQuantities[i]) continue;
+
+            memset(&order, 0, sizeof(order));
+            order.orderID = system->nextOrderID++;
+            order.productID = demoProductIDs[i];
+            order.quantity = demoQuantities[i];
+            order.totalAmount = product->price * demoQuantities[i];
+            order.priority = demoPriorities[i];
+            strcpy(order.status, "Pending");
+
+            if (pqPush(&system->orders, order))
+                product->stock -= demoQuantities[i];
+        }
+    }
 }
 
 

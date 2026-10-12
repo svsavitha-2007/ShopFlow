@@ -105,33 +105,81 @@ const unsplash = id =>
     `https://images.unsplash.com/${id}?auto=format&fit=crop&w=700&q=80`;
 
 const productImages = {
-    101: unsplash("photo-1511707171634-5f897ff02aa9"),
-    103: unsplash("photo-1587829741301-dc798b83add3"),
-    105: unsplash("photo-1496181133206-80ce9b88a853"),
-    108: unsplash("photo-1523275335684-37898b6baf30"),
-    110: unsplash("photo-1505740420928-5e560c06d30e")
+    // Phones, computers and accessories
+    101: unsplash("photo-1511707171634-5f897ff02aa9"), 153: unsplash("photo-1601593346740-925612772716"),
+    154: unsplash("photo-1583394838336-acd977736f90"), 155: unsplash("photo-1583863788434-e58a36330cf0"),
+    103: unsplash("photo-1587829741301-dc798b83add3"), 118: unsplash("photo-1595229760663-0c7a4c6c7b8d"),
+    105: unsplash("photo-1496181133206-80ce9b88a853"), 116: unsplash("photo-1527864550417-7fd91fc51a46"),
+    110: unsplash("photo-1505740420928-5e560c06d30e"), 122: unsplash("photo-1599669454699-248893623440"),
+    112: unsplash("photo-1527814050087-3793815479db"), 121: unsplash("photo-1615663245857-ac93bb7c39e7"),
+    113: unsplash("photo-1625842268584-8f3296236761"), 119: unsplash("photo-1609091839311-d5365f9ff1c5"),
+    114: unsplash("photo-1608043152269-423dbba4e7e1"), 120: unsplash("photo-1590658268037-6bf12165a8df"),
+    115: unsplash("photo-1544244015-0df4b3ffc6b0"), 117: unsplash("photo-1587826080692-f439cd0b70da"),
+    123: unsplash("photo-1597872200969-2b65d56bd16b"), 124: unsplash("photo-1531492746076-161ca9bcad58"),
+    125: unsplash("photo-1544197150-b99a580bb7a8"),
+    126: unsplash("photo-1558002038-1055907df827"), 127: unsplash("photo-1557324232-b8917d3c3dcb"),
+    128: unsplash("photo-1557935728-e6d1ea4f8ba8"), 129: unsplash("photo-1516035069371-29a1b244cc32"),
+    130: unsplash("photo-1503602642458-232111445657"), 131: unsplash("photo-1524758631624-e2822e304c36"),
+    132: unsplash("photo-1612815154858-60aa4c59eaa6"), 133: unsplash("photo-1586075010923-2dd4570fb338"),
+    134: unsplash("photo-1503602642458-232111445657"), 135: unsplash("photo-1507473885765-e6ed057f782c"),
+    136: unsplash("photo-1585771724684-38269d6639fd"), 137: unsplash("photo-1594213114663-d94db9b171e1"),
+    138: unsplash("photo-1495474472287-4d71bcdd2085"), 139: unsplash("photo-1585515320310-259814833e62"),
+    140: unsplash("photo-1585238342024-78d387f4a707"), 141: unsplash("photo-1585659722983-3a675dabf23d"),
+    142: unsplash("photo-1558317374-067fb5f30001"), 143: unsplash("photo-1553062407-98eeb64c6a62"),
+    144: unsplash("photo-1565026057447-bc90a3dceb87"), 145: unsplash("photo-1602143407151-7111542de6e8"),
+    146: unsplash("photo-1494438639946-1ebd1d20bf85"), 147: unsplash("photo-1593359677879-a4bb92f829d1"),
+    148: unsplash("photo-1527443224154-c4a3942d3acf"), 149: unsplash("photo-1616627451515-cbc80e5ece35"),
+    150: unsplash("photo-1558618666-fcd25c85cd64"), 151: unsplash("photo-1628557044797-f21a177c37ec"),
+    152: unsplash("photo-1558002038-1055907df827"), 156: unsplash("photo-1557180295-76eee20ae8aa"),
+    108: unsplash("photo-1523275335684-37898b6baf30")
 };
 
 const getProductImage = id =>
-    productImages[Number(id)] || productImages[108];
+    productImages[Number(id)] || IMAGE_PLACEHOLDER;
 
-const IMAGE_PLACEHOLDER = "data:image/svg+xml;utf8," + encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
-        <rect width="400" height="300" fill="#2a313c"/>
-        <g fill="none" stroke="#98a3b3" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="150" y="105" width="100" height="90" rx="10"/>
-            <path d="M150 190l35-40 30 30 15-15 20 25"/>
-        </g>
-        <circle cx="222" cy="131" r="8" fill="#98a3b3"/>
-    </svg>`
-);
+const productEmoji = name => {
+    const n = String(name || "").toLowerCase();
+    if (/phone|charger|case|screen protector|tracker/.test(n)) return "📱";
+    if (/laptop|ssd|hdd|flash drive|usb-c hub/.test(n)) return "💻";
+    if (/keyboard/.test(n)) return "⌨️";
+    if (/mouse/.test(n)) return "🖱️";
+    if (/headphone|earbud/.test(n)) return "🎧";
+    if (/speaker/.test(n)) return "🔊";
+    if (/tablet/.test(n)) return "📲";
+    if (/watch|fitness band/.test(n)) return "⌚";
+    if (/camera|webcam/.test(n)) return "📷";
+    if (/monitor|tv/.test(n)) return "🖥️";
+    if (/router|wifi/.test(n)) return "📡";
+    if (/bulb|lamp|ring light/.test(n)) return "💡";
+    if (/printer|cartridge/.test(n)) return "🖨️";
+    if (/chair|stand|organizer|tripod|arm/.test(n)) return "🪑";
+    if (/air fryer|kettle|coffee maker|mixer|cooktop/.test(n)) return "🍳";
+    if (/purifier|vacuum/.test(n)) return "🧹";
+    if (/backpack|suitcase/.test(n)) return "🎒";
+    if (/bottle/.test(n)) return "🧴";
+    if (/cable|protector|power bank|surge/.test(n)) return "🔌";
+    return "📦";
+};
 
-/* 'error' does not bubble, so listen in the capture phase */
+function productPlaceholder(name) {
+    const emoji = productEmoji(name);
+    const label = String(name || "ShopFlow product").replace(/[<>&"']/g, "").slice(0, 30);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
+        <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e0f7f4"/><stop offset="1" stop-color="#dbeafe"/></linearGradient></defs>
+        <rect width="400" height="300" rx="22" fill="url(#bg)"/>
+        <circle cx="200" cy="126" r="82" fill="#ffffff" opacity=".76"/>
+        <text x="200" y="160" text-anchor="middle" font-size="96">${emoji}</text>
+        <text x="200" y="252" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#164e63">${label}</text>
+    </svg>`;
+    return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+}
+
+/* Product photos use remote image URLs; category-specific artwork keeps every card attractive offline too. */
 document.addEventListener("error", event => {
     const img = event.target;
     if (!(img instanceof HTMLImageElement) || img.dataset.fallback) return;
     img.dataset.fallback = "true";
-    img.src = IMAGE_PLACEHOLDER;
+    img.src = productPlaceholder(img.alt);
 }, true);
 
 
@@ -280,6 +328,11 @@ function showSection(section) {
 
     $("pageTitle").textContent =
         section === "dashboard" ? greeting() : (sectionTitles[section] || "ShopFlow");
+
+    // The page content already has its own heading on every subpage.
+    // Hide the top-left title there to prevent duplicate headings.
+    const topbar = document.querySelector(".topbar");
+    if (topbar) topbar.classList.toggle("subpage-active", section !== "dashboard");
 
     window.scrollTo({ top: 0 });
     if (section === "history") loadHistory().catch(() => {});
@@ -1075,9 +1128,14 @@ function renderHeap() {
 
     while (start < heapNodes.length) {
         const row = heapNodes.slice(start, start + width);
-        html += `<div class="heap-row">` + row.map((node, i) =>
-            `<span class="heap-node p${node.priority}${start + i === 0 ? " root" : ""}"
-                   title="${PRIORITY_NAMES[node.priority] || ""}">#${node.id}</span>`).join("") + `</div>`;
+        html += `<div class="heap-row">` + row.map((node, i) => {
+            const priority = PRIORITY_NAMES[node.priority] || "Standard";
+            const shortPriority = priority === "Express" ? "EXPRESS" : priority.toUpperCase();
+            return `<span class="heap-node p${node.priority}${start + i === 0 ? " root" : ""}"
+                         title="Order #${node.id} · ${priority}">
+                        #${node.id}<small>${shortPriority}</small>
+                    </span>`;
+        }).join("") + `</div>`;
         start += width;
         width *= 2;
     }
@@ -1156,7 +1214,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 /* =========================================================
    SHOPFLOW AI ASSISTANT (chat widget)
-   Talks to POST /api/chat on the server. The OpenAI key stays
+   Talks to POST /api/chat on the server. The Gemini key stays
    on the server (backend/.env) and is never sent to the browser.
    Self-contained: it only uses the API constant defined above.
    ========================================================= */
@@ -1169,8 +1227,34 @@ document.addEventListener("DOMContentLoaded", async () => {
     const form = document.getElementById("aiForm");
     const input = document.getElementById("aiInput");
     const sendButton = document.getElementById("aiSend");
+    const statusLabel = panel ? panel.querySelector(".ai-title small") : null;
+    const statusDot = statusLabel ? statusLabel.querySelector(".status-dot") : null;
 
     if (!toggle || !panel || !list || !form || !input || !sendButton) return;
+
+    // Do not label the assistant as online until the backend confirms its status.
+    if (statusLabel) statusLabel.lastChild.textContent = " Checking…";
+
+    fetch(API + "/api/ai/status")
+        .then(async response => {
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.success) throw new Error("AI status unavailable");
+            if (statusLabel) statusLabel.lastChild.textContent = data.configured ? " Ready" : " Setup needed";
+            if (statusDot) {
+                statusDot.style.background = data.configured ? "#42c99a" : "#f0ad4e";
+                statusDot.title = data.configured ? "AI configured" : "Gemini API key is missing";
+            }
+            if (!data.configured) {
+                sendButton.title = "Configure GEMINI_API_KEY in backend/.env";
+            }
+        })
+        .catch(() => {
+            if (statusLabel) statusLabel.lastChild.textContent = " Offline";
+            if (statusDot) {
+                statusDot.style.background = "#ef6464";
+                statusDot.title = "AI status unavailable";
+            }
+        });
 
     const WELCOME =
         "Hi! I'm the **ShopFlow AI Assistant**. I can explain how ShopFlow works: " +

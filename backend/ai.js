@@ -1,7 +1,7 @@
 require("dotenv").config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-3.8-flash";
 
 const SYSTEM_INSTRUCTION = `
 You are ShopFlow AI Assistant.
@@ -102,8 +102,14 @@ async function getShopFlowContext(sendCommand) {
     try {
         const productResult = await sendCommand("VIEW_PRODUCTS");
 
-        if (productResult) {
-            products = productResult;
+        if (productResult && productResult.success !== false) {
+            products = Array.isArray(productResult.products)
+                ? productResult.products
+                : Array.isArray(productResult.data)
+                    ? productResult.data
+                    : Array.isArray(productResult)
+                        ? productResult
+                        : [];
         }
     } catch (error) {
         console.error(
@@ -115,8 +121,14 @@ async function getShopFlowContext(sendCommand) {
     try {
         const queueResult = await sendCommand("VIEW_QUEUE");
 
-        if (queueResult) {
-            queue = queueResult;
+        if (queueResult && queueResult.success !== false) {
+            queue = Array.isArray(queueResult.orders)
+                ? queueResult.orders
+                : Array.isArray(queueResult.queue)
+                    ? queueResult.queue
+                    : Array.isArray(queueResult)
+                        ? queueResult
+                        : [];
         }
     } catch (error) {
         console.error(
@@ -128,8 +140,14 @@ async function getShopFlowContext(sendCommand) {
     try {
         const historyResult = await sendCommand("VIEW_HISTORY");
 
-        if (historyResult) {
-            history = historyResult;
+        if (historyResult && historyResult.success !== false) {
+            history = Array.isArray(historyResult.orders)
+                ? historyResult.orders
+                : Array.isArray(historyResult.history)
+                    ? historyResult.history
+                    : Array.isArray(historyResult)
+                        ? historyResult
+                        : [];
         }
     } catch (error) {
         console.error(
@@ -174,132 +192,115 @@ async function askGemini(
     const context = buildContext(shopFlowData);
     const previousMessages = sanitizeHistory(history);
 
-    const currentPrompt = `
+    // The Interactions API accepts a text input. Include a compact transcript
+    // so the assistant can use recent turns without relying on client state IDs.
+    const transcript = previousMessages
+        .map(message => {
+            const speaker = message.role === "model" ? "Assistant" : "User";
+            const text = message.parts
+                .map(part => part.text || "")
+                .join(" ")
+                .trim();
+            return text ? `${speaker}: ${text}` : "";
+        })
+        .filter(Boolean)
+        .join("\n");
+
+    const input = `${SYSTEM_INSTRUCTION}
+
 ${context}
+
+RECENT CONVERSATION:
+${transcript || "No previous messages."}
 
 USER QUESTION:
 ${userMessage}
-`;
 
-    const contents = [
-        ...previousMessages,
-        {
-            role: "user",
-            parts: [
-                {
-                    text: currentPrompt
-                }
-            ]
-        }
-    ];
+Answer the user's question directly. For product, stock, pending-order, and history questions, use only the CURRENT SHOPFLOW DATA above. If the needed data is missing or empty, say so instead of guessing.`;
 
-    const url =
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-
+    const url = "https://generativelanguage.googleapis.com/v1beta/interactions";
     let response;
 
     try {
         response = await fetch(url, {
             method: "POST",
-
             headers: {
                 "Content-Type": "application/json",
                 "x-goog-api-key": GEMINI_API_KEY
             },
-
             body: JSON.stringify({
-                systemInstruction: {
-                    parts: [
-                        {
-                            text: SYSTEM_INSTRUCTION
-                        }
-                    ]
-                },
-
-                contents,
-
-                generationConfig: {
-                    temperature: 0.3,
-                    maxOutputTokens: 500
-                }
+                model: GEMINI_MODEL,
+                input,
+                store: false
             })
         });
     } catch (error) {
-        console.error(
-            "Gemini connection error:",
-            error
-        );
-
+        console.error("Gemini connection error:", error.message);
         throw new Error(
             "Could not connect to Gemini. Check your internet connection and try again."
         );
     }
 
     const responseText = await response.text();
-
     let data;
 
     try {
         data = JSON.parse(responseText);
     } catch {
-        console.error(
-            "Gemini returned invalid JSON:",
-            responseText
-        );
-
-        throw new Error(
-            "Gemini returned an invalid response."
-        );
+        console.error("Gemini returned invalid JSON:", responseText);
+        throw new Error("Gemini returned an invalid response.");
     }
 
     if (!response.ok) {
-        console.error(
-            `Gemini returned HTTP ${response.status}:`,
-            data
-        );
+        console.error(`Gemini returned HTTP ${response.status}:`, data);
+        const apiMessage = data?.error?.message || "";
 
         if (response.status === 400) {
             throw new Error(
-                "Gemini rejected the request. Check the model name or request format."
+                apiMessage || "Gemini rejected the request. Check the model name and API request format."
             );
         }
-
-        if (
-            response.status === 401 ||
-            response.status === 403
-        ) {
+        if (response.status === 401 || response.status === 403) {
             throw new Error(
-                "Gemini API key is invalid or does not have permission to use this API."
+                "Gemini API key is invalid or does not have permission to use this API. Check the key in backend/.env."
             );
         }
-
         if (response.status === 429) {
             throw new Error(
-                "Gemini free-tier limit has been reached. Please wait and try again later."
+                "Gemini rate or quota limit has been reached. Wait a moment and try again."
             );
         }
-
-        throw new Error(
-            data?.error?.message ||
-            `Gemini API error (HTTP ${response.status}).`
-        );
+        throw new Error(apiMessage || `Gemini API error (HTTP ${response.status}).`);
     }
 
-    const answer =
-        data?.candidates?.[0]?.content?.parts
-            ?.map(part => part.text || "")
-            .join("")
-            .trim();
+    // Interactions API returns output_text for standard text responses.
+    // Keep a steps fallback for SDK/API response variations.
+    const stepText = Array.isArray(data?.steps)
+        ? data.steps
+            .filter(step => step?.type === "text" || step?.content)
+            .map(step => {
+                if (typeof step.text === "string") return step.text;
+                if (typeof step.content === "string") return step.content;
+                if (Array.isArray(step.content)) {
+                    return step.content
+                        .map(item => item?.text || "")
+                        .join(" ");
+                }
+                return "";
+            })
+            .filter(Boolean)
+            .join("\n")
+        : "";
+
+    const answer = (
+        typeof data?.output_text === "string"
+            ? data.output_text
+            : stepText
+    ).trim();
 
     if (!answer) {
-        console.error(
-            "Gemini returned no text:",
-            JSON.stringify(data, null, 2)
-        );
-
-        throw new Error(
-            "Gemini returned an empty response."
-        );
+        console.error("Gemini returned no text:", JSON.stringify(data, null, 2));
+        throw new Error("Gemini returned an empty response. Please try again.");
     }
 
     return answer;
@@ -312,7 +313,10 @@ function registerAI(app, sendCommand) {
             success: true,
             configured: Boolean(GEMINI_API_KEY),
             provider: "Google Gemini",
-            model: GEMINI_MODEL
+            model: GEMINI_MODEL,
+            message: GEMINI_API_KEY
+                ? "AI Assistant is configured."
+                : "Add GEMINI_API_KEY to backend/.env and restart the server."
         });
     });
 

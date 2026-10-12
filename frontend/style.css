@@ -159,6 +159,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ---------- Topbar ---------- */
 .topbar { min-height: 92px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+
+/* Avoid showing the same page title in both the topbar and page content. */
+.topbar.subpage-active .topbar-left {
+    display: none;
+}
+
 .topbar h2 { font-size: 26px; margin-top: 2px; }
 
 .topbar-right { display: flex; align-items: center; gap: 12px; }
@@ -499,7 +505,21 @@ input:focus, select:focus { border-color: var(--accent); }
 }
 .dsa-intro p { color: var(--muted); }
 
-.dsa-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.dsa-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+}
+/* Give the long Skip List its own full-width row; keep the other structures side by side below. */
+.dsa-grid .bst-card { grid-column: 1 / -1; }
+.dsa-grid .queue-card,
+.dsa-grid .stack-card { min-width: 0; }
+.dsa-grid .bst-card .skip-lanes { max-height: 330px; }
+.dsa-grid .bst-card .skip-track { grid-auto-columns: 54px; gap: 8px; }
+.dsa-grid .bst-card .skip-node { height: 36px; }
+.dsa-grid .queue-card .heap-tree { min-height: 170px; justify-content: center; }
+.dsa-grid .stack-card .stack-visual { min-height: 170px; justify-content: center; }
 .dsa-card {
     display: flex; flex-direction: column; padding: 22px;
     border: 1px solid var(--line); border-radius: var(--r-md);
@@ -587,7 +607,8 @@ input:focus, select:focus { border-color: var(--accent); }
 @media (max-width: 1150px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
     .dashboard-grid, .shop-layout { grid-template-columns: 1fr; }
-    .dashboard-lower, .dsa-grid { grid-template-columns: 1fr; }
+    .dashboard-lower { grid-template-columns: 1fr; }
+    .dsa-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .cart-panel { position: static; }
     .main-content { padding: 0 28px 56px; }
 }
@@ -626,6 +647,8 @@ input:focus, select:focus { border-color: var(--accent); }
 
 @media (max-width: 600px) {
     .stats-grid { grid-template-columns: 1fr; }
+    .dsa-grid { grid-template-columns: 1fr; }
+    .dsa-grid .bst-card { grid-column: auto; }
     .product-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
     .product-card-body { padding: 12px; }
     .order-row, .history-row { grid-template-columns: 1fr 1fr; gap: 6px 12px; }
@@ -797,10 +820,10 @@ body.modal-open { overflow: hidden; }
 .priority-picker strong { display: block; font-size: 14px; }
 .priority-picker small { color: var(--muted); font-size: 12px; }
 
-.skip-lanes { display: flex; flex-direction: column; gap: 8px; margin: 22px 0; }
-.skip-lane { display: flex; align-items: center; gap: 10px; }
+.skip-lanes { display: flex; flex-direction: column; gap: 8px; margin: 22px 0; max-height: 250px; overflow: auto; padding: 2px 0 8px; }
+.skip-lane { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .skip-label { width: 24px; color: var(--muted); font-size: 12px; font-weight: 700; }
-.skip-track { flex: 1; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; align-items: center; }
+.skip-track { flex: 1; min-width: 0; max-width: calc(100% - 34px); overflow-x: auto; display: grid; grid-auto-flow: column; grid-auto-columns: 42px; gap: 6px; align-items: center; padding: 2px 2px 2px 0; }
 .skip-node {
     display: grid; place-items: center; height: 30px;
     border: 1px solid var(--info); border-radius: 8px; background: var(--info-soft); color: var(--info);
@@ -812,9 +835,11 @@ body.modal-open { overflow: hidden; }
 .heap-tree { display: flex; flex-direction: column; align-items: center; gap: 10px; margin: 22px 0; }
 .heap-row { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; }
 .heap-node {
-    padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    min-width: 62px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 12px;
     background: var(--surface-2); font-size: 12px; font-weight: 700;
 }
+.heap-node small { font-size: 9px; font-weight: 700; letter-spacing: .06em; opacity: .8; }
 .heap-node.p1 { border-color: var(--warn); color: var(--warn); }
 .heap-node.p2 { border-color: var(--info); color: var(--info); }
 .heap-node.root { box-shadow: 0 0 0 3px var(--accent-soft); }

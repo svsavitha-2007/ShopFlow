@@ -101,7 +101,7 @@ Standard FIFO Queue:
 
 ## AI Shopping Assistant
 
-The AI Assistant uses OpenAI's GPT-4o-mini to help users find products and get recommendations.
+The AI Assistant uses Google's Gemini API to help users find products and get recommendations.
 
 ### How It Works
 
@@ -118,7 +118,7 @@ Product Catalog JSON
     ↓
 AI Prompt + User Query
     ↓
-OpenAI API (gpt-4o-mini)
+Google Gemini API (gemini-3.8-flash)
     ↓
 Recommendation Response
 ```
@@ -252,7 +252,8 @@ npm install
 Create a `.env` file in the `backend` directory:
 
 ```bash
-OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-3.8-flash
 ```
 
 The `.env.example` file is provided as a template.
@@ -326,7 +327,7 @@ gcc -o test_heap test_heap.c heap.c
 
 ### Testing AI Integration
 
-1. Ensure `.env` has valid `OPENAI_API_KEY`
+1. Ensure `.env` has valid `GEMINI_API_KEY`
 2. Start the server: `node server.js`
 3. Make a request:
 ```bash
@@ -418,7 +419,7 @@ Install MinGW on Windows or GCC on Linux/Mac.
 ```
 API key not found
 ```
-Create `.env` file in `backend` directory with `OPENAI_API_KEY`.
+Create `.env` file in `backend` directory with `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`).
 
 ### Port Already in Use
 
@@ -442,3 +443,15 @@ This project is for educational purposes as a DSA capstone project.
 ---
 
 *Last updated: 2026-10-02*
+
+
+## Demo data
+
+On a fresh start, ShopFlow loads a 50-product starter catalogue into the C Skip List and seeds five pending example orders across Express, Standard, and Economy priorities. This makes the Skip List lanes and min-heap visible immediately in the DSA Engine. The data is in-memory demo data and resets when the C engine restarts.
+
+
+## DSA Engine layout and product imagery
+
+- The Skip List visualization spans the full content width so its express lanes have room to display the larger catalog.
+- The Priority Queue min-heap and Stack visualization appear side by side beneath it, and stack vertically on narrow screens.
+- All 50 catalog product IDs have product image mappings; if a remote photo cannot load, the product card falls back to a category-specific illustration so the catalog remains visually complete.
