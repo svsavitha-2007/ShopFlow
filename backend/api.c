@@ -42,9 +42,9 @@ static const char *priorityLabel(int priority)
 
 static void printOrder(const struct Order *o)
 {
-    printf("{\"id\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,"
+    printf("{\"id\":%d,\"batchID\":%d,\"productID\":%d,\"quantity\":%d,\"amount\":%.2f,"
            "\"priority\":%d,\"priorityLabel\":\"%s\",\"status\":\"%s\"}",
-           o->orderID, o->productID, o->quantity, o->totalAmount,
+           o->orderID, o->batchID, o->productID, o->quantity, o->totalAmount,
            o->priority, priorityLabel(o->priority), o->status);
 }
 
@@ -165,6 +165,7 @@ static void initializeSystem(struct EcommerceSystem *system)
 
             memset(&order, 0, sizeof(order));
             order.orderID = system->nextOrderID++;
+            order.batchID = order.orderID;
             order.productID = demoProductIDs[i];
             order.quantity = demoQuantities[i];
             order.totalAmount = product->price * demoQuantities[i];
@@ -268,6 +269,7 @@ static void apiPlaceOrder(struct EcommerceSystem *system,
 
     memset(&order, 0, sizeof(order));
     order.orderID = system->nextOrderID++;
+    order.batchID = order.orderID;
     order.productID = productID;
     order.quantity = quantity;
     order.totalAmount = product->price * quantity;
@@ -285,6 +287,116 @@ static void apiPlaceOrder(struct EcommerceSystem *system,
     printf("{\"success\":true,\"message\":\"Order placed successfully\",\"order\":");
     printOrder(&order);
     printf("}\n");
+    fflush(stdout);
+}
+
+/* Place every cart line as one checkout batch. All lines share batchID so the
+   priority queue can process the complete cart in one operation. */
+static void apiPlaceBatch(struct EcommerceSystem *system, const char *priorityText, char *itemsText)
+{
+    int priority;
+    int productIDs[50];
+    int quantities[50];
+    struct Product *productRefs[50];
+    struct Order placed[50];
+    int count = 0;
+    char *entry;
+    int i, j;
+    int batchID;
+
+    if (!parseInt(priorityText, &priority) || !validPriority(priority))
+    {
+        fail("A valid order priority is required");
+        return;
+    }
+
+    entry = strtok(itemsText, ";");
+    while (entry != NULL)
+    {
+        char *comma = strchr(entry, ',');
+        if (count >= 50 || comma == NULL)
+        {
+            fail("Invalid cart items (maximum 50 product lines)");
+            return;
+        }
+
+        *comma = '\0';
+        if (!parseInt(entry, &productIDs[count]) ||
+            !parseInt(comma + 1, &quantities[count]) ||
+            productIDs[count] <= 0 || quantities[count] <= 0)
+        {
+            fail("Each cart line needs a valid product ID and quantity");
+            return;
+        }
+
+        productRefs[count] = skipSearch(&system->products, productIDs[count], NULL);
+        if (productRefs[count] == NULL)
+        {
+            fail("A product in the cart was not found");
+            return;
+        }
+
+        /* Account for duplicate lines referring to the same product. */
+        {
+            int totalNeeded = quantities[count];
+            for (j = 0; j < count; j++)
+                if (productIDs[j] == productIDs[count]) totalNeeded += quantities[j];
+            if (totalNeeded > productRefs[count]->stock)
+            {
+                fail("Insufficient stock for one or more cart items");
+                return;
+            }
+        }
+
+        count++;
+        entry = strtok(NULL, ";");
+    }
+
+    if (count == 0)
+    {
+        fail("Your cart is empty");
+        return;
+    }
+
+    batchID = system->nextOrderID;
+    for (i = 0; i < count; i++)
+    {
+        memset(&placed[i], 0, sizeof(placed[i]));
+        placed[i].orderID = system->nextOrderID + i;
+        placed[i].batchID = batchID;
+        placed[i].productID = productIDs[i];
+        placed[i].quantity = quantities[i];
+        placed[i].totalAmount = productRefs[i]->price * quantities[i];
+        placed[i].priority = priority;
+        strcpy(placed[i].status, "Pending");
+
+        if (!pqPush(&system->orders, placed[i]))
+        {
+            /* Roll back any lines already inserted; stock is not deducted yet. */
+            int k = 0;
+            while (k < system->orders.size)
+            {
+                if (system->orders.items[k].batchID == batchID)
+                    pqRemoveAt(&system->orders, k);
+                else
+                    k++;
+            }
+            fail("Could not add the complete cart to the queue; please retry");
+            return;
+        }
+    }
+
+    system->nextOrderID += count;
+    for (i = 0; i < count; i++) productRefs[i]->stock -= quantities[i];
+
+    printf("{\"success\":true,\"message\":\"Placed %d cart item%s as one order batch\",\"batchID\":%d,\"orders\":[",
+           count, count == 1 ? "" : "s", batchID);
+    for (i = 0; i < count; i++)
+    {
+        if (i) printf(",");
+        printOrder(&placed[i]);
+    }
+    printf("]}\n");
     fflush(stdout);
 }
 
@@ -321,8 +433,9 @@ static void apiViewQueue(struct EcommerceSystem *system)
     for (i = 0; i < count; i++)
     {
         if (i > 0) printf(",");
-        printf("{\"id\":%d,\"priority\":%d}",
+        printf("{\"id\":%d,\"batchID\":%d,\"priority\":%d}",
                system->orders.items[i].orderID,
+               system->orders.items[i].batchID,
                system->orders.items[i].priority);
     }
 
@@ -334,21 +447,66 @@ static void apiViewQueue(struct EcommerceSystem *system)
 
 static void apiProcessOrder(struct EcommerceSystem *system)
 {
-    struct Order order;
+    struct Order *processed;
+    int count = 0;
+    int i;
+    int batchID;
 
-    if (!pqPop(&system->orders, &order))
+    if (pqIsEmpty(&system->orders))
     {
         fail("No pending orders");
         return;
     }
 
-    strcpy(order.status, "Processed");
-    addToHistory(&system->history, order);
+    batchID = system->orders.items[0].batchID;
+    if (batchID <= 0) batchID = system->orders.items[0].orderID;
+    processed = (struct Order *)malloc(system->orders.size * sizeof(struct Order));
+    if (processed == NULL)
+    {
+        fail("Out of memory while processing order");
+        return;
+    }
 
-    printf("{\"success\":true,\"message\":\"Order processed successfully\",\"order\":");
-    printOrder(&order);
-    printf("}\n");
+    /* Save all lines in this checkout batch before removing them from the heap. */
+    for (i = 0; i < system->orders.size; i++)
+    {
+        int candidateBatch = system->orders.items[i].batchID;
+        if (candidateBatch <= 0) candidateBatch = system->orders.items[i].orderID;
+        if (candidateBatch == batchID) processed[count++] = system->orders.items[i];
+    }
+
+    /* Remove every line in the selected batch, not just the heap root. */
+    i = 0;
+    while (i < system->orders.size)
+    {
+        int candidateBatch = system->orders.items[i].batchID;
+        if (candidateBatch <= 0) candidateBatch = system->orders.items[i].orderID;
+        if (candidateBatch == batchID) pqRemoveAt(&system->orders, i);
+        else i++;
+    }
+
+    for (i = 0; i < count; i++)
+    {
+        strcpy(processed[i].status, "Processed");
+        addToHistory(&system->history, processed[i]);
+    }
+
+    printf("{\"success\":true,\"batchID\":%d,\"processedCount\":%d,\"message\":\"", batchID, count);
+    if (count > 1)
+        printf("Processed all %d items in cart order #%d together", count, batchID);
+    else
+        printf("Order processed successfully");
+    printf("\",\"order\":");
+    printOrder(&processed[0]);
+    printf(",\"orders\":[");
+    for (i = 0; i < count; i++)
+    {
+        if (i) printf(",");
+        printOrder(&processed[i]);
+    }
+    printf("]}\n");
     fflush(stdout);
+    free(processed);
 }
 
 static void apiEditOrder(struct EcommerceSystem *system, int orderID, int newQuantity)
@@ -440,6 +598,7 @@ static void apiCancelOrder(struct EcommerceSystem *system, int orderID)
 
     memset(&action, 0, sizeof(action));
     action.orderID = orderID;
+    action.batchID = order.batchID;
     strcpy(action.actionType, "Order Cancelled");
     action.productID = order.productID;
     action.oldQuantity = order.quantity;
@@ -490,6 +649,7 @@ static void apiUndo(struct EcommerceSystem *system)
 
         memset(&order, 0, sizeof(order));
         order.orderID = action.orderID;
+        order.batchID = action.batchID > 0 ? action.batchID : action.orderID;
         order.productID = action.productID;
         order.quantity = action.oldQuantity;
         order.totalAmount = action.oldAmount;
@@ -575,6 +735,13 @@ static void processCommand(struct EcommerceSystem *system, char *line)
     if (count == 0)
     {
         fail("Invalid command");
+        return;
+    }
+
+    if (strcmp(args[0], "PLACE_BATCH") == 0)
+    {
+        if (args[1] == NULL || args[2] == NULL) { fail("Priority and cart items are required"); return; }
+        apiPlaceBatch(system, args[1], args[2]);
         return;
     }
 

@@ -8,6 +8,7 @@
 struct Order
 {
     int orderID;
+    int batchID;              /* checkout/cart batch; its items process together */
     int productID;
     int quantity;
     float totalAmount;

@@ -350,6 +350,16 @@ input:focus, select:focus { border-color: var(--accent); }
 }
 .search-highlight span { color: var(--muted); }
 .search-highlight .small-button { margin-left: auto; }
+.search-result-image { width: 74px; height: 62px; border-radius: 10px; object-fit: contain; padding: 3px; background: #fff; }
+.search-result-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.search-result-copy span, .search-result-copy small { color: var(--muted); font-size: 12px; }
+.search-result-heading { margin: 0 0 10px; font-weight: 700; color: var(--text); }
+.search-results-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(245px, 1fr)); gap: 10px; margin-bottom: 20px; }
+.search-result-card { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+.search-result-card img { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: var(--surface-2); }
+.search-result-card .search-result-copy { flex: 1; }
+.search-result-card .small-button { flex-shrink: 0; }
+.batch-label { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 500; white-space: nowrap; }
 
 /* ---------- Shop layout ---------- */
 .shop-layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 24px; align-items: start; }
@@ -362,8 +372,10 @@ input:focus, select:focus { border-color: var(--accent); }
     transition: border-color .15s, box-shadow .15s;
 }
 .product-card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
-.product-image-wrap { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: var(--surface-2); }
-.product-image { width: 100%; height: 100%; object-fit: cover; display: block; }
+.product-image-wrap { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #fff; }
+.product-image { width: 100%; height: 100%; object-fit: contain; padding: 8px; display: block; background: #fff; }
+.product-image.image-unavailable, .search-result-image.image-unavailable, .search-result-card img.image-unavailable { visibility: hidden; }
+.product-image-wrap:has(.image-unavailable)::after { content: "Photo unavailable offline"; position: absolute; inset: 0; display: grid; place-items: center; color: #64748b; font-size: .85rem; background: linear-gradient(135deg, #f8fafc, #e2e8f0); }
 .product-id {
     position: absolute; top: 10px; left: 10px;
     padding: 4px 10px; border-radius: 999px;

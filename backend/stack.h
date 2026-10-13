@@ -5,6 +5,7 @@
 struct OrderAction
 {
     int orderID;
+    int batchID;
     char actionType[30];       /* "Quantity Changed" | "Order Cancelled" | "Priority Changed" */
     int productID;
 

@@ -407,6 +407,33 @@ app.get(
    ========================================================= */
 
 app.post(
+    "/api/orders/batch",
+    route(req => {
+        const body = req.body || {};
+        const items = body.items;
+        const priority = body.priority === undefined ? 2 : Number(body.priority);
+
+        if (!Array.isArray(items) || items.length < 1 || items.length > 50) {
+            return { success: false, message: "Provide between 1 and 50 cart items." };
+        }
+        if (!PRIORITIES.includes(priority)) {
+            return { success: false, message: "Priority must be 1 (Express), 2 (Standard) or 3 (Economy)." };
+        }
+        for (const item of items) {
+            if (!positiveInt(Number(item.productID)) || !positiveInt(Number(item.quantity))) {
+                return { success: false, message: "Every cart item needs a valid product ID and quantity." };
+            }
+        }
+
+        const encodedItems = items
+            .map(item => `${Number(item.productID)},${Number(item.quantity)}`)
+            .join(";");
+        return sendCommand(`PLACE_BATCH|${priority}|${encodedItems}`);
+    })
+);
+
+
+app.post(
     "/api/orders",
     route(req => {
 

@@ -87,6 +87,7 @@ function readRecord(item) {
     const product = findProduct(productID);
     return {
         id: Number(item.orderID ?? item.id ?? 0),
+        batchID: Number(item.batchID ?? item.orderID ?? item.id ?? 0),
         productID,
         name: product ? product.name : `Product ${productID}`,
         quantity: Number(item.quantity ?? item.newQuantity ?? 0),
@@ -98,90 +99,85 @@ function readRecord(item) {
 
 
 /* =========================================================
-   PRODUCT IMAGES (with fallback)
+   REAL PRODUCT PHOTOGRAPHY
+   Product-specific Unsplash photographs are used instead of cartoon SVGs.
+   These are genuine photo assets loaded over HTTPS; related products may
+   share a photo when a dedicated stock image is not available.
    ========================================================= */
-
-const unsplash = id =>
-    `https://images.unsplash.com/${id}?auto=format&fit=crop&w=700&q=80`;
-
-const productImages = {
-    // Phones, computers and accessories
-    101: unsplash("photo-1511707171634-5f897ff02aa9"), 153: unsplash("photo-1601593346740-925612772716"),
-    154: unsplash("photo-1583394838336-acd977736f90"), 155: unsplash("photo-1583863788434-e58a36330cf0"),
-    103: unsplash("photo-1587829741301-dc798b83add3"), 118: unsplash("photo-1595229760663-0c7a4c6c7b8d"),
-    105: unsplash("photo-1496181133206-80ce9b88a853"), 116: unsplash("photo-1527864550417-7fd91fc51a46"),
-    110: unsplash("photo-1505740420928-5e560c06d30e"), 122: unsplash("photo-1599669454699-248893623440"),
-    112: unsplash("photo-1527814050087-3793815479db"), 121: unsplash("photo-1615663245857-ac93bb7c39e7"),
-    113: unsplash("photo-1625842268584-8f3296236761"), 119: unsplash("photo-1609091839311-d5365f9ff1c5"),
-    114: unsplash("photo-1608043152269-423dbba4e7e1"), 120: unsplash("photo-1590658268037-6bf12165a8df"),
-    115: unsplash("photo-1544244015-0df4b3ffc6b0"), 117: unsplash("photo-1587826080692-f439cd0b70da"),
-    123: unsplash("photo-1597872200969-2b65d56bd16b"), 124: unsplash("photo-1531492746076-161ca9bcad58"),
-    125: unsplash("photo-1544197150-b99a580bb7a8"),
-    126: unsplash("photo-1558002038-1055907df827"), 127: unsplash("photo-1557324232-b8917d3c3dcb"),
-    128: unsplash("photo-1557935728-e6d1ea4f8ba8"), 129: unsplash("photo-1516035069371-29a1b244cc32"),
-    130: unsplash("photo-1503602642458-232111445657"), 131: unsplash("photo-1524758631624-e2822e304c36"),
-    132: unsplash("photo-1612815154858-60aa4c59eaa6"), 133: unsplash("photo-1586075010923-2dd4570fb338"),
-    134: unsplash("photo-1503602642458-232111445657"), 135: unsplash("photo-1507473885765-e6ed057f782c"),
-    136: unsplash("photo-1585771724684-38269d6639fd"), 137: unsplash("photo-1594213114663-d94db9b171e1"),
-    138: unsplash("photo-1495474472287-4d71bcdd2085"), 139: unsplash("photo-1585515320310-259814833e62"),
-    140: unsplash("photo-1585238342024-78d387f4a707"), 141: unsplash("photo-1585659722983-3a675dabf23d"),
-    142: unsplash("photo-1558317374-067fb5f30001"), 143: unsplash("photo-1553062407-98eeb64c6a62"),
-    144: unsplash("photo-1565026057447-bc90a3dceb87"), 145: unsplash("photo-1602143407151-7111542de6e8"),
-    146: unsplash("photo-1494438639946-1ebd1d20bf85"), 147: unsplash("photo-1593359677879-a4bb92f829d1"),
-    148: unsplash("photo-1527443224154-c4a3942d3acf"), 149: unsplash("photo-1616627451515-cbc80e5ece35"),
-    150: unsplash("photo-1558618666-fcd25c85cd64"), 151: unsplash("photo-1628557044797-f21a177c37ec"),
-    152: unsplash("photo-1558002038-1055907df827"), 156: unsplash("photo-1557180295-76eee20ae8aa"),
-    108: unsplash("photo-1523275335684-37898b6baf30")
+const PRODUCT_PHOTOS = {
+    101: "photo-1511707171634-5f897ff02aa9", // Smartphone
+    103: "photo-1587829741301-dc798b83add3", // Keyboard
+    105: "photo-1496181133206-80ce9b88a853", // Laptop
+    108: "photo-1523275335684-37898b6baf30", // Smartwatch
+    110: "photo-1505740420928-5e560c06d30e", // Headphones
+    112: "https://images.unsplash.com/photo-1677019758488-ca44c974ef62?auto=format&fit=crop&fm=jpg&q=80&w=900", // Real wireless mouse photo
+    113: "photo-1625842268584-8f3296236761", // USB-C hub
+    114: "photo-1608043152269-423dbba4e7e1", // Bluetooth speaker
+    115: "photo-1544244015-0df4b3ffc6b0", // Tablet
+    116: "https://images.squarespace-cdn.com/content/v1/5c402e3429711434f9fef098/1685327913902-FHWQXJESOE58M013IYNO/ODDTHING-The-Workmate-Laptop-Stand-Silver.jpg?format=1500w", // Real laptop stand product photo
+    117: "photo-1587825140708-dfaf72ae4b04", // Webcam / desktop accessories
+    118: "photo-1587829741301-dc798b83add3", // Mechanical keyboard
+    119: "photo-1609091839311-d5365f9ff1c5", // Power bank
+    120: "photo-1606220945770-b5b6c2c55bf1", // Wireless earbuds
+    121: "https://images.unsplash.com/photo-1677019758488-ca44c974ef62?auto=format&fit=crop&fm=jpg&q=80&w=900", // Real mouse photo
+    122: "photo-1599669454699-248893623440", // Gaming headset
+    123: "photo-1597872200969-2b65d56bd16b", // Portable SSD
+    124: "photo-1597872200969-2b65d56bd16b", // External HDD
+    125: "photo-1544197150-b99a580bb7a8", // Wi-Fi router
+    126: "photo-1507473885765-e6ed057f782c", // Smart bulb / lighting
+    127: "photo-1557324232-b8917d3c3dcb", // Security camera
+    128: "photo-1523275335684-37898b6baf30", // Fitness band
+    129: "photo-1516035069371-29a1b244cc32", // DSLR camera
+    130: "photo-1606983340126-99ab4feaa64a", // Camera tripod / photography gear
+    131: "photo-1598327105666-5b89351aff97", // Ring light / creator setup
+    132: "photo-1612815154858-60aa4c59eaa6", // Laser printer
+    133: "photo-1612815154858-60aa4c59eaa6", // Ink cartridge / printer supplies
+    134: "photo-1503602642458-232111445657", // Office chair
+    135: "photo-1507473885765-e6ed057f782c", // Desk lamp
+    136: "photo-1585771724684-38269d6639fd", // Air purifier
+    137: "photo-1594212699903-ec8a3eca50f5", // Electric kettle
+    138: "photo-1495474472287-4d71bcdd2085", // Coffee maker / coffee station
+    139: "photo-1585515320310-259814833e62", // Air fryer
+    140: "photo-1570222094114-d054a817e56b", // Mixer grinder
+    141: "photo-1556911220-bff31c812dba", // Induction cooktop / kitchen appliance
+    142: "photo-1558317374-067fb5f30001", // Vacuum cleaner
+    143: "photo-1553062407-98eeb64c6a62", // Travel backpack
+    144: "photo-1565026057447-bc90a3dceb87", // Carry-on suitcase
+    145: "photo-1602143407151-7111542de6e8", // Water bottle
+    146: "photo-1494438639946-1ebd1d20bf85", // Desk organizer / workspace
+    147: "photo-1593359677879-a4bb92f829d1", // 4K smart TV
+    148: "photo-1527443224154-c4a3942d3acf", // 27-inch monitor
+    149: "photo-1527443224154-c4a3942d3acf", // Monitor arm / monitor setup
+    150: "photo-1558618666-fcd25c85cd64", // HDMI cable / electronics cable
+    151: "photo-1618410320928-25228d811631", // USB flash drive
+    152: "photo-1558618666-fcd25c85cd64", // Surge protector / cable accessories
+    153: "photo-1601593346740-925612772716", // Phone case
+    154: "photo-1605236453806-6ff36851218e", // Screen protector / phone accessories
+    155: "photo-1583863788434-e58a36330cf0", // Fast charger
+    156: "photo-1551816230-ef5deaed4a26"  // Bluetooth tracker / smart device
 };
 
-const getProductImage = id =>
-    productImages[Number(id)] || IMAGE_PLACEHOLDER;
-
-const productEmoji = name => {
-    const n = String(name || "").toLowerCase();
-    if (/phone|charger|case|screen protector|tracker/.test(n)) return "📱";
-    if (/laptop|ssd|hdd|flash drive|usb-c hub/.test(n)) return "💻";
-    if (/keyboard/.test(n)) return "⌨️";
-    if (/mouse/.test(n)) return "🖱️";
-    if (/headphone|earbud/.test(n)) return "🎧";
-    if (/speaker/.test(n)) return "🔊";
-    if (/tablet/.test(n)) return "📲";
-    if (/watch|fitness band/.test(n)) return "⌚";
-    if (/camera|webcam/.test(n)) return "📷";
-    if (/monitor|tv/.test(n)) return "🖥️";
-    if (/router|wifi/.test(n)) return "📡";
-    if (/bulb|lamp|ring light/.test(n)) return "💡";
-    if (/printer|cartridge/.test(n)) return "🖨️";
-    if (/chair|stand|organizer|tripod|arm/.test(n)) return "🪑";
-    if (/air fryer|kettle|coffee maker|mixer|cooktop/.test(n)) return "🍳";
-    if (/purifier|vacuum/.test(n)) return "🧹";
-    if (/backpack|suitcase/.test(n)) return "🎒";
-    if (/bottle/.test(n)) return "🧴";
-    if (/cable|protector|power bank|surge/.test(n)) return "🔌";
-    return "📦";
-};
-
-function productPlaceholder(name) {
-    const emoji = productEmoji(name);
-    const label = String(name || "ShopFlow product").replace(/[<>&"']/g, "").slice(0, 30);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">
-        <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e0f7f4"/><stop offset="1" stop-color="#dbeafe"/></linearGradient></defs>
-        <rect width="400" height="300" rx="22" fill="url(#bg)"/>
-        <circle cx="200" cy="126" r="82" fill="#ffffff" opacity=".76"/>
-        <text x="200" y="160" text-anchor="middle" font-size="96">${emoji}</text>
-        <text x="200" y="252" text-anchor="middle" font-family="Arial,sans-serif" font-size="18" font-weight="700" fill="#164e63">${label}</text>
-    </svg>`;
-    return "data:image/svg+xml;charset=UTF-8," + encodeURIComponent(svg);
+function getProductImage(id) {
+    const photoId = PRODUCT_PHOTOS[Number(id)];
+    if (!photoId) return "";
+    return String(photoId).startsWith("https://")
+        ? photoId
+        : `https://images.unsplash.com/${photoId}?auto=format&fit=crop&w=900&q=82`;
 }
 
-/* Product photos use remote image URLs; category-specific artwork keeps every card attractive offline too. */
+// Never replace a failed real photo with cartoon artwork. If a stock photo
+// cannot be loaded (for example, when offline), show a clean neutral fallback.
 document.addEventListener("error", event => {
     const img = event.target;
-    if (!(img instanceof HTMLImageElement) || img.dataset.fallback) return;
+    if (!(img instanceof HTMLImageElement) || !img.classList.contains("product-image") &&
+        !img.classList.contains("search-result-image") && !img.closest(".search-result-card")) return;
+    if (img.dataset.fallback) return;
     img.dataset.fallback = "true";
-    img.src = productPlaceholder(img.alt);
+    img.removeAttribute("src");
+    img.classList.add("image-unavailable");
+    const label = img.alt || "Product photo unavailable";
+    img.setAttribute("aria-label", `${label} photo unavailable while offline`);
 }, true);
-
 
 /* =========================================================
    TOAST
@@ -421,34 +417,55 @@ function renderProducts() {
 async function searchProduct() {
     const input = $("productSearch");
     const result = $("searchResult");
-    const id = Number(input.value);
+    const query = String(input.value || "").trim();
 
-    if (!Number.isInteger(id) || id <= 0) {
-        result.innerHTML = `<div class="search-highlight">Enter a product ID, for example 105.</div>`;
+    if (!query) {
+        result.innerHTML = `<div class="search-highlight">Enter a product name (for example, “Laptop Stand”) or product ID (for example, 116).</div>`;
         input.focus();
         return;
     }
 
     try {
-        const data = await apiRequest(`/api/products/${id}`);
-        const product = data.success && data.product ? data.product : null;
+        // Numeric searches go through the C Skip List; name searches match the catalog.
+        if (/^\d+$/.test(query)) {
+            const id = Number(query);
+            const data = await apiRequest(`/api/products/${id}`);
+            const product = data.success && data.product ? data.product : null;
+            highlightId = product ? Number(product.id) : null;
+            renderSkipLanes();
 
-        result.innerHTML = product
-            ? `<div class="search-highlight">
-                   <strong>Skip list found ${escapeHtml(product.name)}${data.steps ? ` in ${plural(data.steps, "comparison")}` : ""}</strong>
-                   <span>Product #${product.id}</span>
-                   <span>${money(product.price)}</span>
-                   <span>${product.stock} in stock</span>
-                   <button type="button" class="small-button" onclick="addToCart(${Number(product.id)})">Add to cart</button>
-               </div>`
-            : `<div class="search-highlight">No product found with ID ${id}.</div>`;
+            result.innerHTML = product
+                ? `<div class="search-highlight">
+                       <img class="search-result-image" src="${getProductImage(product.id)}" alt="${escapeHtml(product.name)}">
+                       <div class="search-result-copy"><strong>${escapeHtml(product.name)}</strong><span>Product #${product.id} · ${money(product.price)} · ${product.stock} in stock</span>${data.steps ? `<small>Skip List comparisons: ${data.steps}</small>` : ""}</div>
+                       <button type="button" class="small-button" onclick="addToCart(${Number(product.id)})" ${Number(product.stock) <= 0 ? "disabled" : ""}>${Number(product.stock) <= 0 ? "Sold out" : "Add to cart"}</button>
+                   </div>`
+                : `<div class="search-highlight">No product found with ID ${escapeHtml(query)}.</div>`;
+            return;
+        }
 
-        highlightId = product ? Number(product.id) : null;
+        highlightId = null;
         renderSkipLanes();
+        const normalized = query.toLocaleLowerCase();
+        const matches = products.filter(product =>
+            String(product.name || "").toLocaleLowerCase().includes(normalized) ||
+            String(product.id).includes(normalized)
+        ).slice(0, 12);
 
+        if (!matches.length) {
+            result.innerHTML = `<div class="search-highlight">No products match “${escapeHtml(query)}”. Try another name or product ID.</div>`;
+            return;
+        }
+
+        result.innerHTML = `<div class="search-result-heading">${matches.length === 12 ? "Top 12 matches" : `${matches.length} match${matches.length === 1 ? "" : "es"}`} for “${escapeHtml(query)}”</div>
+            <div class="search-results-grid">${matches.map(product => `
+                <article class="search-result-card">
+                    <img src="${getProductImage(product.id)}" alt="${escapeHtml(product.name)}">
+                    <div class="search-result-copy"><strong>${escapeHtml(product.name)}</strong><span>Product #${product.id}</span><span>${money(product.price)} · ${product.stock} in stock</span></div>
+                    <button type="button" class="small-button" onclick="addToCart(${Number(product.id)})" ${Number(product.stock) <= 0 ? "disabled" : ""}>${Number(product.stock) <= 0 ? "Sold out" : "Add to cart"}</button>
+                </article>`).join("")}</div>`;
     } catch (error) {
-        result.innerHTML =
-            `<div class="search-highlight">No product found with ID ${id}. ${escapeHtml(error.message)}</div>`;
+        result.innerHTML = `<div class="search-highlight">Search failed: ${escapeHtml(error.message || "Please try again.")}</div>`;
     }
 }
 
@@ -630,8 +647,9 @@ function renderCartPreview() {
 
 /* =========================================================
    CHECKOUT
-   The C engine accepts one product per order, so each cart
-   line is submitted in sequence to keep FIFO ordering.
+   A whole cart is submitted as one batch and shares one priority.
+   The C engine keeps each product line in the heap but processes
+   every line from the same checkout batch together.
    ========================================================= */
 
 async function checkoutCart() {
@@ -672,18 +690,14 @@ async function checkoutCart() {
     try {
         const lineItems = cart.map(item => ({
             productID: Number(item.productID),
-            quantity: Number(item.quantity),
-            priority
+            quantity: Number(item.quantity)
         }));
-
-        for (const item of lineItems) {
-            const data = await apiRequest("/api/orders", {
-                method: "POST",
-                body: JSON.stringify(item)
-            });
-            if (data.success === false) {
-                throw new Error(data.message || "One of the products could not be ordered.");
-            }
+        const data = await apiRequest("/api/orders/batch", {
+            method: "POST",
+            body: JSON.stringify({ items: lineItems, priority })
+        });
+        if (data.success === false) {
+            throw new Error(data.message || "The cart could not be ordered.");
         }
 
         cart = [];
@@ -736,7 +750,7 @@ function renderOrders() {
             const o = readRecord(raw);
             return `
                 <div class="order-row">
-                    <div class="order-id">#${o.id}</div>
+                    <div class="order-id">#${o.id}<small class="batch-label">Cart #${o.batchID}</small></div>
                     <div>${escapeHtml(o.name)}</div>
                     <div>${o.quantity}</div>
                     <div>${money(o.amount)}</div>
@@ -879,7 +893,7 @@ async function runAction(endpoint, okTitle, okFallback, failTitle) {
 
         showToast(okTitle, data.message || okFallback);
         await refreshAll(false);
-        return true;
+        return data;
 
     } catch (error) {
         showToast(failTitle, error.message || "Something went wrong.", true);
@@ -891,8 +905,17 @@ async function processNextOrder() {
         return showToast("Queue empty", "There are no pending orders to process.", true);
     }
     const next = readRecord(orders[0]);
-    const ok = await runAction("/api/orders/process", "Order processed", "The next order was processed.", "Processing failed");
-    if (ok) logActivity("processed", `Order #${next.id} processed: ${next.name}`, next.amount);
+    const batch = orders.map(readRecord).filter(order => order.batchID === next.batchID);
+    const batchNames = batch.map(order => `${order.name} × ${order.quantity}`).join(", ");
+    const batchTotal = batch.reduce((sum, order) => sum + order.amount, 0);
+    const response = await runAction("/api/orders/process", "Order processed", "The next order was processed.", "Processing failed");
+    if (response) {
+        const count = Number(response.processedCount || batch.length || 1);
+        const message = count > 1
+            ? `Cart order #${next.batchID} processed together (${count} items: ${batchNames})`
+            : `Order #${next.id} processed: ${next.name}`;
+        logActivity("processed", message, batchTotal);
+    }
 }
 
 async function undoLastAction() {

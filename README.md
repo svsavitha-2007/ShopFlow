@@ -1,457 +1,127 @@
-# ShopFlow - Order Management System with Advanced DSA & AI
+# ShopFlow — E-Commerce Order Management System
 
-A full-stack e-commerce order management system featuring modern data structures and an AI-powered shopping assistant.
+ShopFlow is a full-stack e-commerce demo that connects a responsive web interface to a Node.js/Express API and a C data-structure engine. It demonstrates product discovery, multi-item checkout, priority-based order processing, undo operations, activity history, and a Gemini-powered AI assistant.
 
-## 📚 Table of Contents
+## Features
 
-- [Overview](#overview)
-- [DSA Architecture](#dsa-architecture)
-  - [Skip List for Product Search](#skip-list-for-product-search)
-  - [Max-Heap Priority Queue for Orders](#max-heap-priority-queue-for-orders)
-- [AI Shopping Assistant](#ai-shopping-assistant)
-- [Project Structure](#project-structure)
-- [API Documentation](#api-documentation)
-- [Installation & Setup](#installation--setup)
-- [Running the Project](#running-the-project)
-- [Testing](#testing)
-- [DSA Complexity Table](#dsa-complexity-table)
+- **50-product catalog** with product ID, name, price, and stock.
+- **Search by product name or product ID.** Numeric ID lookups go through the C Skip List; name searches support case-insensitive partial matches in the loaded catalog.
+- **Product-specific local illustrations.** The product art is generated locally from each product name/category, so an item such as Laptop Stand cannot accidentally display a mouse photo, and the catalog remains available offline.
+- **Shopping cart and multi-item checkout.** A cart checkout is submitted as one batch with a shared priority.
+- **Priority order processing.** Express (1), Standard (2), and Economy (3) are stored in a binary min-heap; lower priority number is processed first, with arrival sequence breaking ties.
+- **Batch processing.** When the highest-priority checkout batch reaches the root, all product lines from that same cart are processed together rather than requiring one click per product.
+- **Undo Stack** for supported recent edits/cancellations.
+- **Order history** for processed product lines.
+- **Responsive DSA Engine view** with a full-width Skip List visualization and Priority Queue/Stack panels beneath it.
+- **Gemini AI Assistant** via the backend; the API key stays in `backend/.env` and should never be committed or shared.
 
----
+## Data structures
 
-## Overview
+### Skip List — product lookup
 
-ShopFlow is an order management system that demonstrates practical applications of advanced data structures in a real-world application.
+The C Skip List stores products in ascending product-ID order. ID search starts on an upper express lane and moves down levels as needed. Average search time is **O(log n)**; worst-case time is **O(n)**.
 
-### Key Features
+Files: `backend/skiplist.c`, `backend/skiplist.h`.
 
-- **Product Catalog**: Browse and search products using an optimized Skip List
-- **Priority Order Processing**: Express checkout for high-value orders using Max-Heap
-- **Standard Order Queue**: FIFO processing for regular orders
-- **AI Shopping Assistant**: Natural language product recommendations
-- **Undo System**: Revert recent actions using Stack-based history
-- **Dark/Light Theme**: Toggle between dark and light UI modes
+### Priority Queue — binary min-heap
 
----
+The C min-heap orders pending lines by priority (`1 = Express`, `2 = Standard`, `3 = Economy`). If two orders have equal priority, their arrival sequence preserves FIFO order within that priority.
 
-## DSA Architecture
+- Peek at next order: **O(1)**
+- Insert: **O(log n)**
+- Remove the next order: **O(log n)**
 
-### Skip List for Product Search
+Files: `backend/pqueue.c`, `backend/pqueue.h`.
 
-**Replaced**: Binary Search Tree (BST)
+### Stack — undo
 
-The Skip List is a probabilistic data structure that provides O(log n) expected time complexity for search, insert, and delete operations. Unlike BSTs, Skip Lists have guaranteed O(log n) performance and avoid the need for rebalancing operations.
+The Stack follows LIFO: the most recently recorded supported action is considered for undo first.
 
-#### How It Works
+Files: `backend/stack.c`, `backend/stack.h`.
 
-```
-Level 4:  -∞ ---------------------------------------> +∞
-Level 3:  -∞ -----------------> 105 ---------------> +∞
-Level 2:  -∞ ------> 101 -----> 105 -----> 108 ----> +∞
-Level 1:  -∞ -> 101 -> 103 -> 105 -> 108 -> 110 ----> +∞
-Level 0:  -∞ -> 101 -> 103 -> 105 -> 108 -> 110 ----> +∞
-```
+### History list
 
-**Operations**:
-- **Search**: Start from highest level, move forward until next node exceeds target, then drop down level
-- **Insert**: Generate random level, insert node, update forward pointers
-- **Delete**: Find node, update forward pointers to bypass node
+Processed order lines are appended to the history list and exposed to the History page.
 
-**Why Skip List over BST**:
-- O(log n) expected time without complex rebalancing
-- Simpler implementation with better cache locality
-- Randomization provides consistent performance regardless of input order
+Files: `backend/history.c`, `backend/history.h`.
 
-**Files**: `backend/skiplist.c`, `backend/skiplist.h`
+## Project structure
 
----
-
-### Max-Heap Priority Queue for Orders
-
-**Enhanced**: Queue (FIFO) with Priority Queue for Express Orders
-
-The system now supports two parallel order queues:
-1. **Priority Queue (Max-Heap)**: High-value orders processed first
-2. **Standard Queue (FIFO)**: Regular orders processed in arrival order
-
-#### How It Works
-
-```
-Max-Heap (by totalAmount):
-       130000
-      /      \
-    30000     4500
-
-Standard FIFO Queue:
-[1002 -> 1003 -> ...]
-```
-
-**Operations**:
-- **Insert**: Add to end, bubble up (`heapifyUp`) to maintain max-heap property
-- **Extract Max**: Swap root with last element, remove, `heapifyDown` from root
-- **Priority**: Higher `totalAmount` = higher priority
-
-**Why Priority Queue over pure FIFO**:
-- High-value orders receive faster fulfillment
-- Can optionally maintain FIFO for orders of similar value
-- Combines benefits of both approaches
-
-**Files**: `backend/heap.c`, `backend/heap.h`
-
----
-
-## AI Shopping Assistant
-
-The AI Assistant uses Google's Gemini API to help users find products and get recommendations.
-
-### How It Works
-
-```
-User Request
-    ↓
-Frontend (/api/ai/chat)
-    ↓
-Backend (server.js)
-    ↓
-C Engine (VIEW_PRODUCTS)
-    ↓
-Product Catalog JSON
-    ↓
-AI Prompt + User Query
-    ↓
-Google Gemini API (gemini-3.8-flash)
-    ↓
-Recommendation Response
-```
-
-### Features
-
-- **Product Recommendations**: Get suggestions based on natural language queries
-- **Real Catalog Knowledge**: AI only recommends products from your actual catalog
-- **Secure**: API keys never exposed to frontend
-- **Context-Aware**: AI knows stock levels and pricing
-
-### Example Queries
-
-```
-"I need a budget laptop for programming"
-→ Suggests Keyboard (₹1,500) or smartphone alternatives
-
-"Show me the most expensive product"
-→ Suggests Laptop (₹65,000)
-
-"I'm looking for headphones under ₹5,000"
-→ Suggests Headphones (₹2,500)
-```
-
-**Files**: `backend/server.js` (AI endpoint), `frontend/script.js` (chat UI)
-
----
-
-## Project Structure
-
-```
-ShopFlow/
+```text
+ShopFlow-main/
 ├── frontend/
-│   ├── index.html          # Main HTML with AI chat widget
-│   ├── script.js           # Frontend logic + AI chat
-│   └── style.css           # Styling + AI chat styles
-├── backend/
-│   ├── server.js           # Express API + AI endpoint
-│   ├── package.json        # Node dependencies
-│   ├── .env                # Environment variables (API keys)
-│   ├── .env.example        # Environment template
-│   ├── ecommerce.exe       # Compiled C engine
-│   │
-│   ├── DSA Implementation Files:
-│   │   ├── skiplist.c/h    # Skip List for product search
-│   │   ├── heap.c/h        # Max-Heap Priority Queue
-│   │   ├── queue.c/h       # Standard FIFO Queue
-│   │   ├── stack.c/h       # LIFO Stack for undo
-│   │   ├── history.c/h     # Order history tracking
-│   │   └── api.c           # C API controller
-│   └── main.c              # CLI entry point
-└── tests/
-    └── (test files)        # DSA and API tests
+│   ├── index.html
+│   ├── style.css
+│   └── script.js
+└── backend/
+    ├── server.js       # Express API and frontend hosting
+    ├── ai.js           # Gemini assistant integration
+    ├── main.c          # C engine entry point
+    ├── api.c           # C engine commands and JSON responses
+    ├── skiplist.c/.h
+    ├── pqueue.c/.h
+    ├── stack.c/.h
+    ├── history.c/.h
+    ├── order.h
+    ├── package.json
+    └── .env.example
 ```
 
----
+## Setup (Windows)
 
-## API Documentation
+Prerequisites: Node.js/npm and GCC (MSYS2 MinGW-w64 UCRT64 is suitable).
 
-### Product APIs
+1. Extract the ZIP.
+2. Open a terminal in the `backend` directory.
+3. Install dependencies and build/start the C engine through the npm scripts:
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/products` | GET | Get all products from Skip List |
-| `/api/products/:id` | GET | Search product by ID using Skip List |
+   ```bash
+   npm install
+   npm start
+   ```
 
-### Order APIs
+   The `prestart` script compiles the C engine before Express starts.
+4. Open `http://localhost:3000`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/orders` | POST | Place order (supports `isExpress` flag for Priority Queue) |
-| `/api/orders` | GET | View all pending orders (Priority + Standard) |
-| `/api/orders/process` | POST | Process next order (Priority first, then FIFO) |
-| `/api/orders/:id` | PUT | Edit order quantity |
-| `/api/orders/:id` | DELETE | Cancel order |
+### Gemini configuration
 
-### AI API
+Copy `.env.example` to `.env` and add your own Gemini API key to `GEMINI_API_KEY`. Keep `.env` private. The configured default model is `gemini-3.8-flash`.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/ai/chat` | POST | Send message to AI Assistant |
+## Important API routes
 
-**Request Body**:
+| Method | Route | Purpose |
+|---|---|---|
+| GET | `/api/products` | Return catalog products |
+| GET | `/api/products/:id` | Search a product by ID through the Skip List |
+| GET | `/api/skiplist` | Return Skip List levels for visualization |
+| POST | `/api/orders/batch` | Place all cart lines as one checkout batch |
+| POST | `/api/orders` | Place a single product line |
+| GET | `/api/orders` | Return pending lines in priority order and raw heap layout |
+| POST | `/api/orders/process` | Process every line in the next checkout batch together |
+| PUT | `/api/orders/:id` | Edit a pending line's quantity |
+| PUT | `/api/orders/:id/priority` | Change a pending line's priority |
+| DELETE | `/api/orders/:id` | Cancel a pending line |
+| POST | `/api/undo` | Undo the most recent supported action |
+| GET | `/api/history` | Return processed lines |
+| POST | `/api/ai/chat` | Send a message to the AI assistant |
+
+### Batch checkout request example
+
 ```json
 {
-    "message": "I need a budget laptop"
+  "priority": 2,
+  "items": [
+    { "productID": 116, "quantity": 1 },
+    { "productID": 112, "quantity": 2 }
+  ]
 }
 ```
 
-**Response**:
-```json
-{
-    "success": true,
-    "message": "Based on your needs, I recommend the Keyboard (₹1,500) which is great for programming..."
-}
-```
-
-### Internal Commands (C Engine)
-
-| Command | Format | Description |
-|---------|--------|-------------|
-| `VIEW_PRODUCTS` | None | List all products |
-| `SEARCH` | `SEARCH|id` | Find product by ID |
-| `PLACE_ORDER` | `PLACE_ORDER|id|qty|isExpress` | Create order |
-| `VIEW_QUEUE` | None | List pending orders |
-| `PROCESS_ORDER` | None | Process next order |
-| `EDIT_ORDER` | `EDIT_ORDER|id|qty` | Modify order |
-| `CANCEL_ORDER` | `CANCEL_ORDER|id` | Cancel order |
-| `UNDO` | None | Undo last action |
-| `VIEW_HISTORY` | None | Get order history |
-
----
-
-## Installation & Setup
-
-### Prerequisites
-
-- **GCC/MinGW** (for compiling C code)
-- **Node.js** (v16 or higher)
-- **npm** (Node package manager)
-
-### Step 1: Install Node Dependencies
-
-```bash
-cd backend
-npm install
-```
-
-### Step 2: Set Up Environment Variables
-
-Create a `.env` file in the `backend` directory:
-
-```bash
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-3.8-flash
-```
-
-The `.env.example` file is provided as a template.
-
-### Step 3: Compile the C Engine
-
-```bash
-cd backend
-gcc skiplist.c heap.c queue.c stack.c history.c api.c main.c -o ecommerce.exe
-```
-
-On Windows, ensure MinGW is installed and in your PATH.
-
----
-
-## Running the Project
-
-### Option 1: Full Application
-
-```bash
-cd backend
-node server.js
-```
-
-Then open `http://localhost:3000` in your browser.
-
-### Option 2: CLI Mode (Testing DSA)
-
-```bash
-cd backend
-./ecommerce.exe
-```
-
-This launches an interactive command-line interface for testing Skip List and Heap operations.
-
-### Option 3: API Mode (Testing)
-
-```bash
-cd backend
-./ecommerce.exe api
-```
-
-Send commands to stdin and receive JSON responses on stdout.
-
----
-
-## Testing
-
-### Testing the Skip List
-
-**Compile and test**:
-```bash
-gcc -o test_skip_list test_skiplist.c skiplist.c
-./test_skip_list
-```
-
-**Expected outputs**:
-- Insert 100 items → Search for all → Delete every other → Verify remaining
-
-### Testing the Max-Heap Priority Queue
-
-```bash
-gcc -o test_heap test_heap.c heap.c
-./test_heap
-```
-
-**Expected outputs**:
-- Insert items with different amounts
-- Extract max → Verify highest amount extracted first
-- Verify heap property maintained
-
-### Testing AI Integration
-
-1. Ensure `.env` has valid `GEMINI_API_KEY`
-2. Start the server: `node server.js`
-3. Make a request:
-```bash
-curl -X POST http://localhost:3000/api/ai/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "Recommend a laptop"}'
-```
-
-### Testing End-to-End
-
-1. Start server: `node server.js`
-2. Visit `http://localhost:3000`
-3. Add products to cart and checkout with "Express Processing" enabled
-4. Check Orders section - Express orders should be marked and processed first
-5. Try AI chat: "What's the cheapest product?"
-
----
-
-## DSA Complexity Table
-
-| Data Structure | Operation | Expected Complexity | Actual Implementation |
-|----------------|-----------|---------------------|----------------------|
-| **Skip List** | Search | O(log n) | `searchProduct()` |
-| | Insert | O(log n) | `insertProduct()` |
-| | Delete | O(log n) | `deleteProduct()` |
-| | Display | O(n) | `displayProducts()` |
-| **Max-Heap** | Insert | O(log n) | `insertHeap()` |
-| | Extract Max | O(log n) | `extractMax()` |
-| | Heapify | O(log n) | `heapifyUp()`, `heapifyDown()` |
-| | Find (for edit) | O(n) | `findOrderInHeap()` |
-| **Standard Queue** | Enqueue | O(1) | `enqueue()` |
-| | Dequeue | O(1) | `dequeue()` |
-| **Stack** | Push | O(1) | `push()` |
-| | Pop | O(1) | `pop()` |
-
-### Time Complexity Summary
-
-| Operation | Skip List | Max-Heap | Standard Queue | Stack |
-|-----------|-----------|----------|----------------|-------|
-| Insert | O(log n) | O(log n) | O(1) | O(1) |
-| Search | O(log n) | O(n) | O(n) | O(n) |
-| Delete | O(log n) | O(n) | O(1) | O(1) |
-| Access Top | O(n) | O(1) | O(1) | O(1) |
-
----
-
-## Files Modified/Created
-
-| File | Action | Description |
-|------|--------|-------------|
-| `backend/bst.c` | Deleted | Old BST implementation |
-| `backend/bst.h` | Deleted | Old BST header |
-| `backend/skiplist.c` | Created | Skip List implementation |
-| `backend/skiplist.h` | Created | Skip List header |
-| `backend/heap.c` | Created | Max-Heap Priority Queue |
-| `backend/heap.h` | Created | Heap header |
-| `backend/api.c` | Modified | Updated for Skip List and Heap |
-| `backend/main.c` | Modified | Updated for Skip List |
-| `backend/server.js` | Modified | Added AI endpoint |
-| `backend/package.json` | Modified | Added openai, dotenv |
-| `backend/.env` | Created | API key storage |
-| `backend/.env.example` | Created | Environment template |
-| `frontend/index.html` | Modified | Added AI chat widget |
-| `frontend/script.js` | Modified | Added AI chat logic |
-| `frontend/style.css` | Modified | Added AI chat styles |
-
----
-
-## Security Notes
-
-1. **API Keys**: Never commit `.env` file. Use `.env.example` as template.
-2. **AI Endpoint**: All API key handling is server-side only
-3. **Input Validation**: All user inputs are validated before processing
-4. **SQL Injection**: N/A - using in-memory data structures (no database)
-
----
-
-## Troubleshooting
-
-### C Compilation Errors
-
-```
-gcc: command not found
-```
-Install MinGW on Windows or GCC on Linux/Mac.
-
-### API Key Errors
-
-```
-API key not found
-```
-Create `.env` file in `backend` directory with `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`).
-
-### Port Already in Use
-
-```
-Error: listen EADDRINUSE: address already in use :::3000
-```
-Kill existing process: `npx nodemon` or change PORT in `server.js`.
-
----
-
-## License
-
-This project is for educational purposes as a DSA capstone project.
-
----
-
-## Author
-
-**Deepsikha K** - DSA Capstone Project
-
----
-
-*Last updated: 2026-10-02*
-
+The C engine assigns the same `batchID` to both lines. The next processing action removes and records all lines from that batch together, while the heap still orders batches by priority and arrival.
 
 ## Demo data
 
-On a fresh start, ShopFlow loads a 50-product starter catalogue into the C Skip List and seeds five pending example orders across Express, Standard, and Economy priorities. This makes the Skip List lanes and min-heap visible immediately in the DSA Engine. The data is in-memory demo data and resets when the C engine restarts.
+On each fresh C-engine start, ShopFlow loads 50 sample products and seeds five example pending orders so the Skip List and min-heap are visible immediately. This demo state is held in memory and resets when the C engine restarts.
 
-
-## DSA Engine layout and product imagery
-
-- The Skip List visualization spans the full content width so its express lanes have room to display the larger catalog.
-- The Priority Queue min-heap and Stack visualization appear side by side beneath it, and stack vertically on narrow screens.
-- All 50 catalog product IDs have product image mappings; if a remote photo cannot load, the product card falls back to a category-specific illustration so the catalog remains visually complete.
+### Product photography
+The product catalog uses product-specific photographic images over HTTPS rather than generated cartoon artwork. An internet connection is required for these remote photos. If a photo cannot load, the UI shows a neutral offline fallback rather than substituting a misleading cartoon image.

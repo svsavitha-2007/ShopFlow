@@ -184,12 +184,12 @@
                 <div>
                     <span class="section-kicker">Catalog</span>
                     <h2>Product explorer</h2>
-                    <p>Browse products and add items to your cart. Search by ID to see the skip list lookup in action.</p>
+                    <p>Browse products and add items to your cart. Search by product name or ID; ID searches demonstrate the Skip List.</p>
                 </div>
 
                 <div class="search-box" role="search">
                     <span aria-hidden="true">⌕</span>
-                    <input id="productSearch" type="number" min="1" inputmode="numeric" placeholder="Search by product ID" aria-label="Search by product ID">
+                    <input id="productSearch" type="search" placeholder="Search by product name or ID…" aria-label="Search by product name or ID" autocomplete="off">
                     <button type="button" onclick="searchProduct()">Search</button>
                 </div>
             </div>
